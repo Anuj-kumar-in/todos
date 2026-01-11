@@ -26,6 +26,11 @@ module.exports = {
             accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
             chainId: 11155111
         },
+        arbitrumSepolia: {
+            url: process.env.ARBITRUM_SEPOLIA_RPC_URL ,
+            accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+            chainId: 421614
+        },
         ethereum: {
             url: process.env.ETHEREUM_RPC_URL || "https://eth.llamarpc.com",
             accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],

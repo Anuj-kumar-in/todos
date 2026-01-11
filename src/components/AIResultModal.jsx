@@ -112,7 +112,7 @@ export default function AIResultModal({
                     {/* Actions */}
                     <div className="bg-white/5 -mx-6 -mb-6 p-6 flex flex-col sm:flex-row items-center gap-4 border-t border-white/10 mt-6">
                         <div className="flex-1 text-sm text-gray-400 text-center sm:text-left">
-                            By accepting, you agree to these results. If >50% vote decline, manual voting begins.
+                            By accepting, you agree to these results. If {'>'}50% vote decline, manual voting begins.
                         </div>
                         <div className="flex gap-3 w-full sm:w-auto">
                             <Button variant="secondary" onClick={onDecline} icon={ThumbsDown} className="flex-1 sm:flex-none bg-red-500/10 text-red-400 hover:bg-red-500/20 border-red-500/20">
