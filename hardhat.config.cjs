@@ -106,16 +106,6 @@ module.exports = {
             accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
             chainId: 43113
         },
-        starknet: {
-            url: process.env.STARKNET_RPC_URL || "https://starknet-mainnet.infura.io/v3/9a06dc3f8b30448f8c0d3e9b01a24939",
-            accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
-            chainId: 1
-        },
-        starknetSepolia: {
-            url: process.env.STARKNET_SEPOLIA_RPC_URL || "https://starknet-sepolia.infura.io/v3/9a06dc3f8b30448f8c0d3e9b01a24939",
-            accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
-            chainId: 1
-        },
         celo: {
             url: process.env.CELO_RPC_URL || "https://celo-mainnet.infura.io/v3/9a06dc3f8b30448f8c0d3e9b01a24939",
             accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
