@@ -2,17 +2,11 @@
 export const CONTRACT_ADDRESSES = {
     // Sepolia testnet addresses - updated with actual deployed addresses
     11155111: {
-        todoToken: import.meta.env.VITE_TODO_TOKEN_ADDRESS || '0x0000000000000000000000000000000000000000',
-            matchContract: import.meta.env.VITE_MATCH_CONTRACT_ADDRESS || '0x0000000000000000000000000000000000000000',
-            votingContract: import.meta.env.VITE_VOTING_CONTRACT_ADDRESS || '0x0000000000000000000000000000000000000000',
-            rewardDistribution: import.meta.env.VITE_REWARD_DISTRIBUTION_ADDRESS || '0x000000000000000000000000000000000000'
+        todosArena: import.meta.env.VITE_TODOS_ARENA_ADDRESS || '0x0000000000000000000000000000000000000000'
     },
     // Hardhat local
     31337: {
-        todoToken: import.meta.env.VITE_TODO_TOKEN_ADDRESS || '0x0000000000000000000000000000000000000000',
-            matchContract: import.meta.env.VITE_MATCH_CONTRACT_ADDRESS || '0x0000000000000000000000000000000000000000',
-            votingContract: import.meta.env.VITE_VOTING_CONTRACT_ADDRESS || '0x0000000000000000000000000000000000000000',
-            rewardDistribution: import.meta.env.VITE_REWARD_DISTRIBUTION_ADDRESS || '0x000000000000000000000000000000000000'
+        todosArena: import.meta.env.VITE_TODOS_ARENA_ADDRESS || '0x0000000000000000000000000000000000000000'
     },
 }
 

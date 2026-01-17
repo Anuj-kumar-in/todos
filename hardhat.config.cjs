@@ -27,7 +27,7 @@ module.exports = {
             chainId: 11155111
         },
         arbitrumSepolia: {
-            url: process.env.ARBITRUM_SEPOLIA_RPC_URL ,
+            url: process.env.ARBITRUM_SEPOLIA_RPC_URL || "https://arbitrum-sepolia.drpc.org",
             accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
             chainId: 421614
         },
