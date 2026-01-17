@@ -21,7 +21,9 @@ async function main() {
         todosArena: todosArenaAddress,
         network: hre.network.name,
         deployer: deployer.address,
-        deployedAt: new Date().toISOString()
+        deployedAt: new Date().toISOString(),
+        chainId: hre.network.config.chainId,
+        rpcUrl: hre.network.config.url
     };
 
     fs.writeFileSync(
