@@ -11,7 +11,7 @@ import CameraCapture from '../components/CameraCapture'
 import ScreenshotUpload from '../components/ScreenshotUpload'
 import AIResultModal from '../components/AIResultModal'
 import { MatchStatusBadge } from '../components/ui/Badge'
-import { GAME_TYPE_ICONS, GAME_TYPE_NAMES, MATCH_CONTRACT_ABI } from '../config/contracts'
+import { GAME_TYPE_ICONS, GAME_TYPE_NAMES, TODO_ARENA_ABI } from '../config/contracts'
 import { getContractAddresses } from '../config/wagmi'
 import { useMatchContract } from '../hooks/useMatchContract'
 import { useVotingContract } from '../hooks/useVotingContract'
@@ -55,12 +55,13 @@ export default function MatchDetail() {
     const { data: matchData, isLoading: isLoadingMatch, refetch: refetchMatch } = useGetMatch(matchId)
 
     // Fetch participants
-    const { data: participants, isLoading: isLoadingParticipants, refetch: refetchParticipants } = useReadContract({
-        address: addresses.matchContract,
-        abi: MATCH_CONTRACT_ABI,
-        functionName: 'getMatchParticipants',
-        args: [matchId],
-    })
+const { data: participants, isLoading: isLoadingParticipants, refetch: refetchParticipants } = useReadContract({
+    address: addresses.matchContract,
+    abi: TODO_ARENA_ABI,
+    functionName: 'getMatchParticipants',
+    args: [matchId],
+})
+
 
     useEffect(() => {
         refetchMatch()
