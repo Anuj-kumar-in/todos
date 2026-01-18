@@ -37,10 +37,7 @@ export default function Footer() {
                     {/* Brand */}
                     <div className="lg:col-span-2">
                         <Link to="/" className="flex items-center gap-3 mb-4">
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center">
-                                <span className="text-white font-bold text-lg">T</span>
-                            </div>
-                            <span className="text-xl font-bold gradient-text">todosArena</span>
+                            <img src="/fevicon.svg" alt="Todos Arena" className="h-24 w-auto" />
                         </Link>
                         <p className="text-gray-400 mb-6 max-w-sm">
                             The ultimate decentralized platform for competitive gaming.

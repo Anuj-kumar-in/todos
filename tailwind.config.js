@@ -77,4 +77,5 @@ export default {
         },
     },
     plugins: [],
+    safelist: ['font-bitcount', 'font-cinzel', 'font-rock-salt'],
 }

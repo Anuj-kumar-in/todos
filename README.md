@@ -10,6 +10,7 @@ A decentralized sports/games management platform with AI-powered verification, c
 - 🪙 **Token Rewards**: Winners receive crypto on the blockchain as rewards.
 - 📍 **Location-Based**: Find and join outdoor games near your location.
 - ⛓️ **Blockchain Secured**: All data is stored on the Ethereum blockchain for transparency and security.
+- 🌐 **Multi-Network Support**: Supports mostly all EVM networks (adding in progress)
 
 ## Quick Start
 
@@ -34,19 +35,47 @@ npm run dev
 
 ### Smart Contracts
 
+The platform uses two main smart contracts:
+
+#### Relayer Contract
+- **Purpose**: Deployed on multiple blockchain networks (testnets and mainnets)
+- **Features**:
+  - User message signing and storage
+  - Stake recording for cross-chain participation
+  - Admin verification of stakes
+  - Message execution tracking
+- **Networks**: Currently deployed on Sepolia, Arbitrum Sepolia, Linea Sepolia, Polygon Amoy, Base Sepolia, Blast Sepolia, Optimism Sepolia, ZKSync Sepolia, BSC Testnet, Scroll Sepolia, and OPBNB Testnet
+
+#### TodosArena Contract
+- **Purpose**: Main contract deployed on primary network (Ethereum Sepolia for testing)
+- **Features**:
+  - **ERC20 Token**: "TODO Arena Token" (TODO) with 1 billion total supply
+  - **Match Management**: Create and manage matches with entry stakes, participant limits, and voting durations
+  - **Cross-Chain Integration**: Receives actions from Relayer contracts across different networks
+  - **AI Verification**: Stores AI-generated reports for match results
+  - **Community Voting**: Participants vote on winners with consensus-based finalization
+  - **Reward Distribution**: Automatic token minting and distribution to winners
+  - **Stake Verification**: Cross-chain stake confirmation system
+- **Roles**: Admin, Oracle, Distributor, Voting Manager, Minter, Burner, Bridge
+
+#### Deployment Commands
+
 ```bash
 # Compile smart contracts
 npx hardhat compile
 
 # Deploy to local network
 npx hardhat node
-npx hardhat run scripts/deploy.js --network localhost
+npx hardhat run scripts/deploy.cjs --network localhost
 
 # Deploy to Sepolia testnet
-npx hardhat run scripts/deploy.js --network sepolia
+npx hardhat run scripts/deploy.cjs --network sepolia
 
 # Deploy to Arbitrum Sepolia
 npx hardhat run scripts/deploy.cjs --network arbitrumSepolia
+
+# Deploy to all test networks (skips failed deployments)
+./deploy-testnets.sh
 ```
 
 ## Environment Setup

@@ -5,7 +5,7 @@ import {
   useAccount,
 } from 'wagmi'
 import { parseEther, formatEther } from 'viem'
-import { CONTRACT_ADDRESSES, TODOS_ARENA_ABI } from '../config/contracts'
+import { CONTRACT_ADDRESSES, TODO_ARENA_ABI } from '../config/contracts'
 import toast from 'react-hot-toast'
 
 export function useTodosArenaContract() {
@@ -22,7 +22,7 @@ export function useTodosArenaContract() {
 
   const { data: matchCounter, refetch: refetchCounter } = useReadContract({
     address: todoArenaAddress,
-    abi: TODOS_ARENA_ABI,
+    abi: TODO_ARENA_ABI,
     functionName: 'matchCounter',
   })
 
@@ -32,13 +32,13 @@ export function useTodosArenaContract() {
     isLoading: isLoadingMatches,
   } = useReadContract({
     address: todoArenaAddress,
-    abi: TODOS_ARENA_ABI,
+    abi: TODO_ARENA_ABI,
     functionName: 'getAllMatches',
   })
 
   const { data: userMatches, refetch: refetchUserMatches } = useReadContract({
     address: todoArenaAddress,
-    abi: TODOS_ARENA_ABI,
+    abi: TODO_ARENA_ABI,
     functionName: 'getUserMatches',
     args: [address],
     query: { enabled: !!address },
@@ -60,7 +60,7 @@ export function useTodosArenaContract() {
     try {
       const tx = await createMatchWrite({
         address: todoArenaAddress,
-        abi: TODOS_ARENA_ABI,
+        abi: TODO_ARENA_ABI,
         functionName: 'createMatch',
         args: [
           title,
@@ -99,7 +99,7 @@ export function useTodosArenaContract() {
     try {
       const tx = await registerStakeWrite({
         address: todoArenaAddress,
-        abi: TODOS_ARENA_ABI,
+        abi: TODO_ARENA_ABI,
         functionName: 'registerStakeVerification',
         args: [user, matchId, parseEther(amount), chainId, relayerStakeId],
       })
@@ -121,7 +121,7 @@ export function useTodosArenaContract() {
     try {
       const tx = await confirmStakeWrite({
         address: todoArenaAddress,
-        abi: TODOS_ARENA_ABI,
+        abi: TODO_ARENA_ABI,
         functionName: 'confirmStakeAndJoinMatch',
         args: [verificationId],
       })
@@ -144,7 +144,7 @@ export function useTodosArenaContract() {
     try {
       const tx = await submitVoteWrite({
         address: todoArenaAddress,
-        abi: TODOS_ARENA_ABI,
+        abi: TODO_ARENA_ABI,
         functionName: 'submitVote',
         args: [matchId, winnerAddresses],
       })
@@ -164,7 +164,7 @@ export function useTodosArenaContract() {
     try {
       const tx = await finalizeVotingWrite({
         address: todoArenaAddress,
-        abi: TODOS_ARENA_ABI,
+        abi: TODO_ARENA_ABI,
         functionName: 'finalizeVoting',
         args: [matchId],
       })
@@ -180,7 +180,7 @@ export function useTodosArenaContract() {
   const useGetVotingSession = (matchId) => {
     return useReadContract({
       address: todoArenaAddress,
-      abi: TODOS_ARENA_ABI,
+      abi: TODO_ARENA_ABI,
       functionName: 'getVotingSession',
       args: [matchId],
       query: { enabled: !!matchId },
@@ -190,7 +190,7 @@ export function useTodosArenaContract() {
   const useHasVoted = (matchId) => {
     return useReadContract({
       address: todoArenaAddress,
-      abi: TODOS_ARENA_ABI,
+      abi: TODO_ARENA_ABI,
       functionName: 'hasVoted',
       args: [matchId, address],
       query: { enabled: !!matchId && !!address },
@@ -200,7 +200,7 @@ export function useTodosArenaContract() {
   const useFinalWinners = (matchId) => {
     return useReadContract({
       address: todoArenaAddress,
-      abi: TODOS_ARENA_ABI,
+      abi: TODO_ARENA_ABI,
       functionName: 'getFinalWinners',
       args: [matchId],
       query: { enabled: !!matchId },
@@ -211,7 +211,7 @@ export function useTodosArenaContract() {
 
   const { data: rewardBalance, refetch: refetchRewardBalance } = useReadContract({
     address: todoArenaAddress,
-    abi: TODOS_ARENA_ABI,
+    abi: TODO_ARENA_ABI,
     functionName: 'getRewardBalance',
     args: [address],
     query: { enabled: !!address },
@@ -219,7 +219,7 @@ export function useTodosArenaContract() {
 
   const { data: totalEarned, refetch: refetchTotalEarned } = useReadContract({
     address: todoArenaAddress,
-    abi: TODOS_ARENA_ABI,
+    abi: TODO_ARENA_ABI,
     functionName: 'getTotalEarned',
     args: [address],
     query: { enabled: !!address },
@@ -232,7 +232,7 @@ export function useTodosArenaContract() {
     try {
       const tx = await claimRewardsWrite({
         address: todoArenaAddress,
-        abi: TODOS_ARENA_ABI,
+        abi: TODO_ARENA_ABI,
         functionName: 'claimAllRewards',
       })
       toast.success('Rewards claimed!')
@@ -250,7 +250,7 @@ export function useTodosArenaContract() {
     try {
       const tx = await claimRewardsWrite({
         address: todoArenaAddress,
-        abi: TODOS_ARENA_ABI,
+        abi: TODO_ARENA_ABI,
         functionName: 'claimRewards',
         args: [matchId],
       })
@@ -267,7 +267,7 @@ export function useTodosArenaContract() {
   const useGetRewardPool = (matchId) => {
     return useReadContract({
       address: todoArenaAddress,
-      abi: TODOS_ARENA_ABI,
+      abi: TODO_ARENA_ABI,
       functionName: 'getRewardPool',
       args: [matchId],
       query: { enabled: !!matchId },
@@ -279,7 +279,7 @@ export function useTodosArenaContract() {
   const useGetMatch = (matchId) => {
     return useReadContract({
       address: todoArenaAddress,
-      abi: TODOS_ARENA_ABI,
+      abi: TODO_ARENA_ABI,
       functionName: 'getMatch',
       args: [matchId],
       query: { enabled: !!matchId },
@@ -289,7 +289,7 @@ export function useTodosArenaContract() {
   const useGetMatchParticipants = (matchId) => {
     return useReadContract({
       address: todoArenaAddress,
-      abi: TODOS_ARENA_ABI,
+      abi: TODO_ARENA_ABI,
       functionName: 'getMatchParticipants',
       args: [matchId],
       query: { enabled: !!matchId },

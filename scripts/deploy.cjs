@@ -1,28 +1,46 @@
 const hre = require("hardhat");
 
 async function main() {
-    console.log("🚀 Deploying TodosArena contract...\n");
+    console.log("🚀 Deploying contracts...\n");
 
     const [deployer] = await hre.ethers.getSigners();
     console.log("Deploying with account:", deployer.address);
     console.log("Account balance:", (await hre.ethers.provider.getBalance(deployer.address)).toString());
-    
+
+    const chainId = hre.network.config.chainId;
+
+    let todosArenaAddress = null;
+    let relayerAddress = null;
+
+    // Deploy Relayer on all networks
+    console.log("Deploying Relayer contract...");
+    const Relayer = await hre.ethers.getContractFactory("Relayer");
+    const relayer = await Relayer.deploy(deployer.address, deployer.address);
+    await relayer.waitForDeployment();
+    relayerAddress = await relayer.getAddress();
+    console.log("Relayer deployed at:", relayerAddress);
+
+    // Deploy TodosArena on all networks
+    console.log("Deploying TodosArena contract...");
     const TodosArena = await hre.ethers.getContractFactory("TodosArena");
     const todosArena = await TodosArena.deploy();
     await todosArena.waitForDeployment();
-    const todosArenaAddress = await todosArena.getAddress();
+    todosArenaAddress = await todosArena.getAddress();
+    console.log("TodosArena deployed at:", todosArenaAddress);
 
-    console.log("🎉 TodosArena contract deployed successfully!");
-    console.log("Contract Address:");
-    console.log("TodosArena:        ", todosArenaAddress);
+    console.log("🎉 Deployment completed!");
+    console.log("Contract Addresses:");
+    if (todosArenaAddress) console.log("TodosArena:", todosArenaAddress);
+    console.log("Relayer:", relayerAddress);
 
     const fs = require("fs");
     const addresses = {
         todosArena: todosArenaAddress,
+        relayer: relayerAddress,
         network: hre.network.name,
         deployer: deployer.address,
         deployedAt: new Date().toISOString(),
-        chainId: hre.network.config.chainId,
+        chainId: chainId,
         rpcUrl: hre.network.config.url
     };
 
@@ -32,34 +50,53 @@ async function main() {
     );
     console.log("Addresses saved to deployed-addresses.json");
 
-    // Update .env file with the deployed address
+    // Update .env file with the deployed addresses
     const networkToEnv = {
-        sepolia: 'SEPOLIA_TODOS_ARENA_ADDRESS',
-        arbitrumSepolia: 'ARBITRUM_SEPOLIA_TODOS_ARENA_ADDRESS',
-        lineaSepolia: 'LINEA_SEPOLIA_TODOS_ARENA_ADDRESS',
-        polygonAmoy: 'POLYGON_AMOY_TODOS_ARENA_ADDRESS',
-        baseSepolia: 'BASE_SEPOLIA_TODOS_ARENA_ADDRESS',
-        blastSepolia: 'BLAST_SEPOLIA_TODOS_ARENA_ADDRESS',
-        optimismSepolia: 'OPTIMISM_SEPOLIA_TODOS_ARENA_ADDRESS',
-        palmTestnet: 'PALM_TESTNET_TODOS_ARENA_ADDRESS',
-        avalancheFuji: 'AVALANCHE_FUJI_TODOS_ARENA_ADDRESS',
-        zkSyncSepolia: 'ZKSYNC_SEPOLIA_TODOS_ARENA_ADDRESS',
-        bscTestnet: 'BSC_TESTNET_TODOS_ARENA_ADDRESS',
-        unichainSepolia: 'UNICHAIN_SEPOLIA_TODOS_ARENA_ADDRESS',
-        swellchainTestnet: 'SWELLCHAIN_TESTNET_TODOS_ARENA_ADDRESS',
-        scrollSepolia: 'SCROLL_SEPOLIA_TODOS_ARENA_ADDRESS',
-        opBNBTestnet: 'OPBNB_TESTNET_TODOS_ARENA_ADDRESS',
-        mantleSepolia: 'MANTLE_SEPOLIA_TODOS_ARENA_ADDRESS'
+        sepolia: { todosArena: 'TODOS_ARENA_ADDRESS', relayer: 'SEPOLIA_RELAYER_ADDRESS' },
+        arbitrum: { relayer: 'ARBITRUM_RELAYER_ADDRESS' },
+        arbitrumSepolia: { relayer: 'ARBITRUM_SEPOLIA_RELAYER_ADDRESS' },
+        optimism: { relayer: 'OPTIMISM_RELAYER_ADDRESS' },
+        optimismSepolia: { relayer: 'OPTIMISM_SEPOLIA_RELAYER_ADDRESS' },
+        polygon: { relayer: 'POLYGON_RELAYER_ADDRESS' },
+        polygonAmoy: { relayer: 'POLYGON_AMOY_RELAYER_ADDRESS' },
+        base: { relayer: 'BASE_RELAYER_ADDRESS' },
+        baseSepolia: { relayer: 'BASE_SEPOLIA_RELAYER_ADDRESS' },
+        blast: { relayer: 'BLAST_RELAYER_ADDRESS' },
+        blastSepolia: { relayer: 'BLAST_SEPOLIA_RELAYER_ADDRESS' },
+        linea: { relayer: 'LINEA_RELAYER_ADDRESS' },
+        lineaSepolia: { relayer: 'LINEA_SEPOLIA_RELAYER_ADDRESS' },
+        scroll: { relayer: 'SCROLL_RELAYER_ADDRESS' },
+        scrollSepolia: { relayer: 'SCROLL_SEPOLIA_RELAYER_ADDRESS' },
+        zkSync: { relayer: 'ZKSYNC_RELAYER_ADDRESS' },
+        zkSyncSepolia: { relayer: 'ZKSYNC_SEPOLIA_RELAYER_ADDRESS' },
+        bsc: { relayer: 'BSC_RELAYER_ADDRESS' },
+        bscTestnet: { relayer: 'BSC_TESTNET_RELAYER_ADDRESS' },
+        avalanche: { relayer: 'AVALANCHE_RELAYER_ADDRESS' },
+        avalancheFuji: { relayer: 'AVALANCHE_FUJI_RELAYER_ADDRESS' },
+        mantle: { relayer: 'MANTLE_RELAYER_ADDRESS' },
+        mantleSepolia: { relayer: 'MANTLE_SEPOLIA_RELAYER_ADDRESS' },
+        celo: { relayer: 'CELO_RELAYER_ADDRESS' },
+        // Add more as needed
     };
 
-    const envVar = networkToEnv[hre.network.name];
-    if (envVar) {
+    const envVars = networkToEnv[hre.network.name];
+    if (envVars) {
         const envPath = '.env';
         let envContent = fs.readFileSync(envPath, 'utf8');
-        const regex = new RegExp(`^${envVar}=.*$`, 'm');
-        envContent = envContent.replace(regex, `${envVar}=${todosArenaAddress}`);
+
+        if (envVars.relayer && relayerAddress) {
+            const regex = new RegExp(`^${envVars.relayer}=.*$`, 'm');
+            envContent = envContent.replace(regex, `${envVars.relayer}=${relayerAddress}`);
+            console.log(`Updated ${envVars.relayer} in .env with ${relayerAddress}`);
+        }
+
+        if (envVars.todosArena && todosArenaAddress) {
+            const regex = new RegExp(`^${envVars.todosArena}=.*$`, 'm');
+            envContent = envContent.replace(regex, `${envVars.todosArena}=${todosArenaAddress}`);
+            console.log(`Updated ${envVars.todosArena} in .env with ${todosArenaAddress}`);
+        }
+
         fs.writeFileSync(envPath, envContent);
-        console.log(`Updated ${envVar} in .env with ${todosArenaAddress}`);
     } else {
         console.log(`No env var mapping for network ${hre.network.name}`);
     }

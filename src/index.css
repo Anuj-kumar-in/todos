@@ -3,13 +3,13 @@
 @tailwind utilities;
 
 :root {
-  --arena-dark: #0a0a0f;
-  --arena-darker: #050508;
-  --arena-card: #12121a;
-  --arena-border: #1f1f2e;
-  --arena-glow: #8b5cf6;
-  --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  --gradient-accent: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  --arena-dark: #000000;
+  --arena-darker: #000000;
+  --arena-card: #0a0a0a;
+  --arena-border: #1a1a1a;
+  --arena-glow: #ffffff;
+  --gradient-primary: linear-gradient(135deg, #1a1a1a 0%, #000000 100%);
+  --gradient-accent: linear-gradient(135deg, #ffffff 0%, #a3a3a3 100%);
 }
 
 * {
@@ -52,14 +52,14 @@ body {
 /* Glassmorphism utilities */
 @layer components {
   .glass {
-    background: rgba(18, 18, 26, 0.7);
+    background: rgba(0, 0, 0, 0.7);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border: 1px solid rgba(255, 255, 255, 0.08);
   }
 
   .glass-dark {
-    background: rgba(10, 10, 15, 0.8);
+    background: rgba(0, 0, 0, 0.8);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     border: 1px solid rgba(255, 255, 255, 0.05);
@@ -68,8 +68,8 @@ body {
   .glass-card {
     background: linear-gradient(
       135deg,
-      rgba(139, 92, 246, 0.08) 0%,
-      rgba(59, 130, 246, 0.05) 100%
+      rgba(255, 255, 255, 0.05) 0%,
+      rgba(255, 255, 255, 0.02) 100%
     );
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
@@ -169,16 +169,16 @@ body {
 /* Background Effects */
 .bg-grid {
   background-image: 
-    linear-gradient(rgba(139, 92, 246, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(139, 92, 246, 0.03) 1px, transparent 1px);
+    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
   background-size: 50px 50px;
 }
 
 .bg-radial-glow {
   background: 
-    radial-gradient(ellipse at 50% 0%, rgba(139, 92, 246, 0.15) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 50%, rgba(102, 126, 234, 0.1) 0%, transparent 40%),
-    radial-gradient(ellipse at 20% 80%, rgba(118, 75, 162, 0.1) 0%, transparent 40%);
+    radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 50%, rgba(255, 255, 255, 0.03) 0%, transparent 40%),
+    radial-gradient(ellipse at 20% 80%, rgba(255, 255, 255, 0.03) 0%, transparent 40%);
 }
 
 /* Animations */
@@ -227,3 +227,23 @@ body {
   --rk-colors-accentColor: #8b5cf6 !important;
   --rk-colors-accentColorForeground: #ffffff !important;
 }
+
+/* Custom Fonts - Loaded in index.html */
+
+.font-bitcount {
+  font-family: 'Bitcount', sans-serif;
+  font-variation-settings: "wght" 900;
+}
+
+.font-cinzel {
+  font-family: 'Cinzel', serif;
+}
+
+.font-rock-salt {
+  font-family: 'Rock Salt', cursive;
+}
+
+.font-sans {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
