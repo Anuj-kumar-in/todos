@@ -7,33 +7,41 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 
+/**
+ * @title TodosArena
+ * @dev Single contract deployed on primary network (e.g., Ethereum Mainnet)
+ * Stores ALL match data, voting sessions, and rewards
+ * Receives cross-chain actions from Relayer contracts via admin
+ */
 contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burnable {
+    
     bytes32 public constant ORACLE_ROLE = keccak256("ORACLE_ROLE");
     bytes32 public constant DISTRIBUTOR_ROLE = keccak256("DISTRIBUTOR_ROLE");
     bytes32 public constant VOTING_MANAGER_ROLE = keccak256("VOTING_MANAGER_ROLE");
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     bytes32 public constant BURNER_ROLE = keccak256("BURNER_ROLE");
+    bytes32 public constant BRIDGE_ROLE = keccak256("BRIDGE_ROLE"); // Admin account that bridges from Relayers
 
     uint256 public constant TOTAL_SUPPLY = 1_000_000_000 * 10**18; // 1 Billion TODO
 
-
+    // Enum for game and match types
     enum GameType {
-        INDOOR,  
-        OUTDOOR,  
-        ONLINE,  
-        OFFLINE,   
-        HYBRID     
+        INDOOR,
+        OUTDOOR,
+        ONLINE,
+        OFFLINE,
+        HYBRID
     }
 
     enum MatchStatus {
-        CREATED,     // Match created, waiting for players
-        ACTIVE,      // Match is ongoing
-        VOTING,      // Waiting for voting results
-        COMPLETED,   // Match completed, rewards distributed
-        CANCELLED    // Match cancelled
+        CREATED,
+        ACTIVE,
+        VOTING,
+        COMPLETED,
+        CANCELLED
     }
 
-    // Match struct
+    // Match struct with cross-chain references
     struct Match {
         uint256 id;
         address creator;
@@ -51,6 +59,9 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
         uint256 votingDuration;
         bytes32 aiReportHash;
         bool aiReportSubmitted;
+        // Cross-chain tracking
+        uint256 creatorNetworkChainId;
+        mapping(address => uint256) participantChainId; // Track which network each participant is from
     }
 
     struct MatchView {
@@ -68,6 +79,7 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
         uint256 startedAt;
         uint256 votingStartTime;
         uint256 votingDuration;
+        uint256 creatorNetworkChainId;
     }
 
     // Voting structs
@@ -96,29 +108,41 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
         uint256 distributedAt;
     }
 
-    // State variables for matches
+    // Stake verification struct for cross-chain stakes
+    struct StakeVerification {
+        address user;
+        uint256 matchId;
+        uint256 amount;
+        uint256 chainId;
+        uint256 relayerStakeId;
+        bool verified;
+    }
+
+    // State variables
     uint256 public matchCounter;
     mapping(uint256 => Match) public matches;
     mapping(address => uint256[]) public userMatches;
 
-    // State variables for voting
+    // Voting state
     mapping(uint256 => VotingSession) public votingSessions;
     mapping(uint256 => mapping(address => Vote)) public votes;
     mapping(uint256 => mapping(address => uint256)) public winnerVoteCounts;
 
-    // State variables for rewards
+    // Rewards state
     mapping(uint256 => RewardPool) public rewardPools;
     mapping(address => uint256) public userRewardBalance;
     mapping(address => uint256) public totalEarned;
+    uint256 public totalRewardsDistributed;
+
+    // Cross-chain stake tracking
+    mapping(uint256 => StakeVerification) public stakeVerifications;
+    uint256 public stakeVerificationCounter;
 
     // Configuration
-    address public escrowAddress;
+    address public platformFeeRecipient;
     uint256 public platformFeePercentage = 5;
     uint256 public constant CONSENSUS_THRESHOLD = 50;
     uint256 public constant VOTING_REWARD = 5 * 10**18;
-
-    // Token tracking
-    uint256 public totalRewardsDistributed;
 
     // Events for matches
     event MatchCreated(
@@ -127,13 +151,15 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
         string title,
         GameType gameType,
         uint256 entryStake,
-        uint256 maxParticipants
+        uint256 maxParticipants,
+        uint256 creatorChainId
     );
 
     event ParticipantJoined(
         uint256 indexed matchId,
         address indexed participant,
-        uint256 entryStakePaid
+        uint256 entryStakePaid,
+        uint256 participantChainId
     );
 
     event MatchStarted(
@@ -201,7 +227,23 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
         uint256 winnerCount
     );
 
-    // Events for token
+    // Cross-chain events
+    event StakeVerificationCreated(
+        uint256 indexed verificationId,
+        address indexed user,
+        uint256 indexed matchId,
+        uint256 amount,
+        uint256 chainId,
+        uint256 relayerStakeId
+    );
+
+    event StakeVerificationConfirmed(
+        uint256 indexed verificationId,
+        address indexed user,
+        uint256 indexed matchId
+    );
+
+    // Token events
     event TokensMinted(address indexed to, uint256 amount, string reason);
     event TokensBurned(address indexed from, uint256 amount);
 
@@ -250,10 +292,15 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
         _grantRole(VOTING_MANAGER_ROLE, msg.sender);
         _grantRole(MINTER_ROLE, msg.sender);
         _grantRole(BURNER_ROLE, msg.sender);
+        _grantRole(BRIDGE_ROLE, msg.sender); // Admin that bridges from Relayers
+        platformFeeRecipient = msg.sender;
     }
+
+    // ==================== MATCH FUNCTIONS ====================
 
     /**
      * @dev Create a new match
+     * Can be called directly by user or by admin from Relayer bridge
      */
     function createMatch(
         string memory _title,
@@ -263,6 +310,54 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
         uint256 _maxParticipants,
         uint256 _votingDuration
     ) external returns (uint256) {
+        return _createMatchInternal(
+            msg.sender,
+            _title,
+            _description,
+            _gameType,
+            _entryStake,
+            _maxParticipants,
+            _votingDuration,
+            block.chainid
+        );
+    }
+
+    /**
+     * @dev Create match from cross-chain Relayer
+     * Only admin can bridge matches from other networks
+     */
+    function createMatchFromRelay(
+        address _creator,
+        string memory _title,
+        string memory _description,
+        GameType _gameType,
+        uint256 _entryStake,
+        uint256 _maxParticipants,
+        uint256 _votingDuration,
+        uint256 _creatorChainId
+    ) external onlyRole(BRIDGE_ROLE) returns (uint256) {
+        return _createMatchInternal(
+            _creator,
+            _title,
+            _description,
+            _gameType,
+            _entryStake,
+            _maxParticipants,
+            _votingDuration,
+            _creatorChainId
+        );
+    }
+
+    function _createMatchInternal(
+        address _creator,
+        string memory _title,
+        string memory _description,
+        GameType _gameType,
+        uint256 _entryStake,
+        uint256 _maxParticipants,
+        uint256 _votingDuration,
+        uint256 _chainId
+    ) internal returns (uint256) {
         require(bytes(_title).length > 0, "Title required");
         require(_entryStake > 0, "Entry stake must be greater than 0");
         require(_maxParticipants >= 2, "Need at least 2 participants");
@@ -273,7 +368,7 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
 
         Match storage newMatch = matches[matchId];
         newMatch.id = matchId;
-        newMatch.creator = msg.sender;
+        newMatch.creator = _creator;
         newMatch.title = _title;
         newMatch.description = _description;
         newMatch.gameType = _gameType;
@@ -282,48 +377,106 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
         newMatch.maxParticipants = _maxParticipants;
         newMatch.createdAt = block.timestamp;
         newMatch.votingDuration = _votingDuration;
+        newMatch.creatorNetworkChainId = _chainId;
 
-        userMatches[msg.sender].push(matchId);
+        userMatches[_creator].push(matchId);
 
         emit MatchCreated(
             matchId,
-            msg.sender,
+            _creator,
             _title,
             _gameType,
             _entryStake,
-            _maxParticipants
+            _maxParticipants,
+            _chainId
         );
 
         return matchId;
     }
 
     /**
-     * @dev Join an existing match
+     * @dev Register stake verification
+     * User calls recordStake on Relayer, admin then calls this to register verification
      */
-    function joinMatch(uint256 _matchId)
-        external
-        payable
-        nonReentrant
-        matchExists(_matchId)
-        matchInStatus(_matchId, MatchStatus.CREATED)
-    {
-        Match storage _match = matches[_matchId];
+    function registerStakeVerification(
+        address _user,
+        uint256 _matchId,
+        uint256 _amount,
+        uint256 _chainId,
+        uint256 _relayerStakeId
+    ) external onlyRole(BRIDGE_ROLE) returns (uint256) {
+        require(_amount > 0, "Amount must be positive");
+        
+        stakeVerificationCounter++;
+        uint256 verificationId = stakeVerificationCounter;
+        
+        StakeVerification storage verification = stakeVerifications[verificationId];
+        verification.user = _user;
+        verification.matchId = _matchId;
+        verification.amount = _amount;
+        verification.chainId = _chainId;
+        verification.relayerStakeId = _relayerStakeId;
+        verification.verified = false;
+        
+        emit StakeVerificationCreated(
+            verificationId,
+            _user,
+            _matchId,
+            _amount,
+            _chainId,
+            _relayerStakeId
+        );
+        
+        return verificationId;
+    }
 
-        require(msg.value == _match.entryStake, "Entry fee mismatch");
+    /**
+     * @dev Confirm stake was received and add participant to match
+     */
+    function confirmStakeAndJoinMatch(uint256 _verificationId)
+        external
+        onlyRole(BRIDGE_ROLE)
+        matchExists(stakeVerifications[_verificationId].matchId)
+    {
+        StakeVerification storage verification = stakeVerifications[_verificationId];
+        require(!verification.verified, "Stake already verified");
+
+        Match storage _match = matches[verification.matchId];
+        require(_match.status == MatchStatus.CREATED, "Match not in created status");
         require(_match.participants.length < _match.maxParticipants, "Match is full");
 
+        // Check if user already joined
         for (uint256 i = 0; i < _match.participants.length; i++) {
-            require(_match.participants[i] != msg.sender, "Already joined");
+            require(_match.participants[i] != verification.user, "Already joined");
         }
 
-        _match.participants.push(msg.sender);
-        userMatches[msg.sender].push(_matchId);
-        _match.totalPrizePool += msg.value;
+        // Verify amount matches
+        require(verification.amount == _match.entryStake, "Entry stake mismatch");
 
-        emit ParticipantJoined(_matchId, msg.sender, msg.value);
+        // Add participant
+        _match.participants.push(verification.user);
+        _match.participantChainId[verification.user] = verification.chainId;
+        _match.totalPrizePool += verification.amount;
+        userMatches[verification.user].push(verification.matchId);
 
+        verification.verified = true;
+
+        emit StakeVerificationConfirmed(
+            _verificationId,
+            verification.user,
+            verification.matchId
+        );
+
+        emit ParticipantJoined(
+            verification.matchId,
+            verification.user,
+            verification.amount,
+            verification.chainId
+        );
+
+        // Auto-start if full
         if (_match.participants.length == _match.maxParticipants) {
-            _startMatch(_matchId);
+            _startMatch(verification.matchId);
         }
     }
 
@@ -336,9 +489,6 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
         emit MatchStatusChanged(_matchId, MatchStatus.ACTIVE, block.timestamp);
     }
 
-    /**
-     * @dev Manually start the match
-     */
     function startMatch(uint256 _matchId)
         external
         matchExists(_matchId)
@@ -349,9 +499,6 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
         _startMatch(_matchId);
     }
 
-    /**
-     * @dev Submit AI detection report
-     */
     function submitAIReport(uint256 _matchId, bytes32 _reportHash)
         external
         onlyRole(ORACLE_ROLE)
@@ -365,9 +512,6 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
         emit AIReportSubmitted(_matchId, _reportHash, block.timestamp);
     }
 
-    /**
-     * @dev Transition match to voting phase
-     */
     function startVotingPhase(uint256 _matchId)
         external
         onlyCreator(_matchId)
@@ -378,7 +522,6 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
         _match.status = MatchStatus.VOTING;
         _match.votingStartTime = block.timestamp;
 
-        // Create voting session
         VotingSession storage session = votingSessions[_matchId];
         session.matchId = _matchId;
         session.participants = _match.participants;
@@ -388,9 +531,6 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
         emit VotingSessionCreated(_matchId, _match.participants, session.votingEndTime);
     }
 
-    /**
-     * @dev Complete the match
-     */
     function completeMatch(uint256 _matchId)
         external
         onlyRole(ORACLE_ROLE)
@@ -403,9 +543,6 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
         emit MatchStatusChanged(_matchId, MatchStatus.COMPLETED, block.timestamp);
     }
 
-    /**
-     * @dev Cancel the match and refund
-     */
     function cancelMatch(uint256 _matchId, string memory _reason)
         external
         onlyCreator(_matchId)
@@ -417,17 +554,11 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
 
         _match.status = MatchStatus.CANCELLED;
 
-        for (uint256 i = 0; i < _match.participants.length; i++) {
-            (bool success, ) = payable(_match.participants[i]).call{
-                value: _match.entryStake
-            }("");
-            require(success, "Refund failed");
-        }
-
         emit MatchCancelled(_matchId, _reason);
     }
 
-    // View functions for matches
+    // ==================== VIEW FUNCTIONS ====================
+
     function getMatch(uint256 _matchId) external view matchExists(_matchId) returns (MatchView memory) {
         Match storage _match = matches[_matchId];
         return MatchView({
@@ -444,7 +575,8 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
             createdAt: _match.createdAt,
             startedAt: _match.startedAt,
             votingStartTime: _match.votingStartTime,
-            votingDuration: _match.votingDuration
+            votingDuration: _match.votingDuration,
+            creatorNetworkChainId: _match.creatorNetworkChainId
         });
     }
 
@@ -478,16 +610,15 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
                 createdAt: _match.createdAt,
                 startedAt: _match.startedAt,
                 votingStartTime: _match.votingStartTime,
-                votingDuration: _match.votingDuration
+                votingDuration: _match.votingDuration,
+                creatorNetworkChainId: _match.creatorNetworkChainId
             });
         }
         return allMatches;
     }
 
-    // Voting functions
-    /**
-     * @dev Submit a vote for match winners
-     */
+    // ==================== VOTING FUNCTIONS ====================
+
     function submitVote(uint256 _matchId, address[] calldata _winnerAddresses)
         external
         votingActive(_matchId)
@@ -533,9 +664,6 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
         emit VoteCasted(_matchId, msg.sender, _winnerAddresses, block.timestamp);
     }
 
-    /**
-     * @dev Finalize voting and determine winners
-     */
     function finalizeVoting(uint256 _matchId)
         external
         onlyRole(VOTING_MANAGER_ROLE)
@@ -570,7 +698,6 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
         emit VotingFinalized(_matchId, finalWinners, session.votesReceived, winnerCount > 0);
     }
 
-    // View functions for voting
     function getVotingSession(uint256 _matchId)
         external
         view
@@ -604,14 +731,8 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
         return votingSessions[_matchId].finalWinners;
     }
 
-    function getParticipants(uint256 _matchId) external view returns (address[] memory) {
-        return votingSessions[_matchId].participants;
-    }
+    // ==================== REWARD FUNCTIONS ====================
 
-    // Reward functions
-    /**
-     * @dev Distribute rewards to match winners
-     */
     function distributeRewards(
         uint256 _matchId,
         address[] calldata _winners,
@@ -648,9 +769,6 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
         emit RewardPoolCreated(_matchId, tokenAmount, _winners.length);
     }
 
-    /**
-     * @dev Claim rewards for a specific match
-     */
     function claimRewards(uint256 _matchId) external nonReentrant {
         RewardPool storage pool = rewardPools[_matchId];
         require(pool.distributed, "Rewards not yet distributed");
@@ -674,9 +792,6 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
         emit RewardsClaimed(msg.sender, _matchId, reward, block.timestamp);
     }
 
-    /**
-     * @dev Claim all accumulated rewards
-     */
     function claimAllRewards() external nonReentrant {
         uint256 balance = userRewardBalance[msg.sender];
         require(balance > 0, "No rewards to claim");
@@ -688,7 +803,6 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
         emit RewardsClaimed(msg.sender, 0, balance, block.timestamp);
     }
 
-    // View functions for rewards
     function getRewardBalance(address _user) external view returns (uint256) {
         return userRewardBalance[_user];
     }
@@ -718,13 +832,8 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
         return totalRewardsDistributed;
     }
 
-    // Token functions
-    /**
-     * @dev Mint new TODO tokens
-     * @param to Address to receive tokens
-     * @param amount Amount of tokens to mint
-     * @param reason Reason for minting (for auditing)
-     */
+    // ==================== TOKEN FUNCTIONS ====================
+
     function mint(
         address to,
         uint256 amount,
@@ -738,20 +847,32 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
         emit TokensMinted(to, amount, reason);
     }
 
-    /**
-     * @dev Burn tokens
-     * @param amount Amount of tokens to burn
-     */
     function burnTokens(uint256 amount) public onlyRole(BURNER_ROLE) {
         _burn(msg.sender, amount);
         emit TokensBurned(msg.sender, amount);
     }
 
-    /**
-     * @dev Check if address has minter role
-     */
     function isMinter(address account) public view returns (bool) {
         return hasRole(MINTER_ROLE, account);
     }
 
+    // ==================== ADMIN FUNCTIONS ====================
+
+    function setPlatformFeeRecipient(address _newRecipient) external onlyOwner {
+        require(_newRecipient != address(0), "Invalid recipient");
+        platformFeeRecipient = _newRecipient;
+    }
+
+    function setPlatformFeePercentage(uint256 _newPercentage) external onlyOwner {
+        require(_newPercentage <= 100, "Invalid percentage");
+        platformFeePercentage = _newPercentage;
+    }
+
+    function grantBridgeRole(address _bridge) external onlyOwner {
+        _grantRole(BRIDGE_ROLE, _bridge);
+    }
+
+    function revokeBridgeRole(address _bridge) external onlyOwner {
+        _revokeRole(BRIDGE_ROLE, _bridge);
+    }
 }

@@ -7,22 +7,20 @@ import Button from '../components/ui/Button'
 import Card, { CardContent, CardHeader, CardTitle } from '../components/ui/Card'
 import { MatchStatusBadge } from '../components/ui/Badge'
 import { GAME_TYPE_ICONS, GAME_TYPE_NAMES } from '../config/contracts'
-import { useMatchContract } from '../hooks/useMatchContract'
-import { useRewardsContract } from '../hooks/useRewardsContract'
+import { useTodosArenaContract } from '../hooks/useTodosArenaContract'
 import { Loader } from '../components/ui/Loader'
 import { formatEther } from 'viem'
 import toast from 'react-hot-toast'
 
 export default function Profile() {
     const { address, isConnected } = useAccount()
-    const { allMatches, userMatches, isLoadingMatches, refetchUserMatches } = useMatchContract()
-    const { tokenBalance, rewardBalance, claimAllRewards, isClaiming, refetchBalance, refetchTokenBalance } = useRewardsContract()
+    const { allMatches, userMatches, isLoadingMatches, refetchUserMatches, totalEarned, rewardBalance, claimAllRewards, isClaimingRewards, refetchRewardBalance, refetchTotalEarned } = useTodosArenaContract()
 
     useEffect(() => {
         if (isConnected) {
             refetchUserMatches()
-            refetchBalance()
-            refetchTokenBalance()
+            refetchRewardBalance()
+            refetchTotalEarned()
         }
     }, [isConnected])
 
@@ -95,11 +93,11 @@ export default function Profile() {
                             </div>
                         </div>
                         <div className="flex gap-6">
-                            <div className="text-center">
-                                <div className="text-2xl font-bold gradient-text">{parseFloat(tokenBalance).toFixed(0)}</div>
-                                <div className="text-sm text-gray-500">TODO Balance</div>
-                            </div>
+                        <div className="text-center">
+                            <div className="text-2xl font-bold gradient-text">{parseFloat(totalEarned).toFixed(0)}</div>
+                            <div className="text-sm text-gray-500">TODO Balance</div>
                         </div>
+                    </div>
                     </div>
                 </Card>
             </motion.div>
@@ -168,14 +166,14 @@ export default function Profile() {
                     <Card gradient glow>
                         <CardHeader><CardTitle className="flex items-center gap-2"><Coins className="w-5 h-5 text-yellow-500" />TODO Balance</CardTitle></CardHeader>
                         <CardContent>
-                            <div className="text-4xl font-bold text-white mb-2">{parseFloat(tokenBalance).toFixed(2)}</div>
+                            <div className="text-4xl font-bold text-white mb-2">{parseFloat(totalEarned).toFixed(2)}</div>
                             <div className="text-sm text-gray-400 mb-4">TODO Tokens</div>
                             {parseFloat(rewardBalance) > 0 && (
                                 <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/20 mb-4">
                                     <div className="flex justify-between"><span className="text-green-400">Pending Rewards</span><span className="font-bold text-green-400">+{parseFloat(rewardBalance).toFixed(2)}</span></div>
                                 </div>
                             )}
-                            <Button className="w-full" onClick={handleClaimRewards} loading={isClaiming} disabled={parseFloat(rewardBalance) <= 0}>
+                            <Button className="w-full" onClick={handleClaimRewards} loading={isClaimingRewards} disabled={parseFloat(rewardBalance) <= 0}>
                                 {parseFloat(rewardBalance) > 0 ? 'Claim Rewards' : 'No Rewards to Claim'}
                             </Button>
                         </CardContent>

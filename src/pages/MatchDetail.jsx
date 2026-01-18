@@ -13,8 +13,7 @@ import AIResultModal from '../components/AIResultModal'
 import { MatchStatusBadge } from '../components/ui/Badge'
 import { GAME_TYPE_ICONS, GAME_TYPE_NAMES, TODO_ARENA_ABI } from '../config/contracts'
 import { getContractAddresses } from '../config/wagmi'
-import { useMatchContract } from '../hooks/useMatchContract'
-import { useVotingContract } from '../hooks/useVotingContract'
+import { useTodosArenaContract } from '../hooks/useTodosArenaContract'
 import useAIDetection from '../hooks/useAIDetection'
 import { Loader } from '../components/ui/Loader'
 import { formatEther } from 'viem'
@@ -36,8 +35,7 @@ export default function MatchDetail() {
     const [selectedWinners, setSelectedWinners] = useState([])
 
     // Contract Hooks
-    const { joinMatch, isJoiningMatch, startMatch, isStartingMatch, startVotingPhase, isStartingVoting, useGetMatch, refetchMatches } = useMatchContract()
-    const { submitVote, isVoting } = useVotingContract()
+    const { confirmStakeAndJoinMatch, isConfirmingStake, finalizeVoting, isFinalizingVoting, submitVote, isVoting, useGetMatch, refetchMatches } = useTodosArenaContract()
 
     // AI Hooks
     const {

@@ -16,7 +16,7 @@ import Button from '../components/ui/Button'
 import Card, { CardContent, CardHeader, CardTitle } from '../components/ui/Card'
 import Input, { Textarea, Select } from '../components/ui/Input'
 import { GAME_TYPE_ICONS, GAME_TYPE_NAMES } from '../config/contracts'
-import { useMatchContract } from '../hooks/useMatchContract'
+import { useTodosArenaContract } from '../hooks/useTodosArenaContract'
 import toast from 'react-hot-toast'
 
 const gameTypeOptions = [
@@ -39,7 +39,7 @@ const votingDurationOptions = [
 export default function CreateMatch() {
     const navigate = useNavigate()
     const { address, isConnected } = useAccount()
-    const { createMatch, isCreatingMatch } = useMatchContract()
+    const { createMatch, isCreatingMatch } = useTodosArenaContract()
     const [step, setStep] = useState(1)
 
     const [formData, setFormData] = useState({

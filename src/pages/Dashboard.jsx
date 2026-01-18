@@ -8,8 +8,7 @@ import Button from '../components/ui/Button'
 import Card, { CardContent, CardHeader, CardTitle } from '../components/ui/Card'
 import { MatchStatusBadge } from '../components/ui/Badge'
 import { GAME_TYPE_ICONS, GAME_TYPE_NAMES } from '../config/contracts'
-import { useMatchContract } from '../hooks/useMatchContract'
-import { useRewardsContract } from '../hooks/useRewardsContract'
+import { useTodosArenaContract } from '../hooks/useTodosArenaContract'
 import { Loader } from '../components/ui/Loader'
 import { formatEther } from 'viem'
 
@@ -33,8 +32,7 @@ function StatCard({ icon: Icon, label, value, subValue, color }) {
 
 export default function Dashboard() {
     const { address, isConnected } = useAccount()
-    const { allMatches, userMatches, isLoadingMatches, refetchMatches, refetchUserMatches } = useMatchContract()
-    const { tokenBalance, rewardBalance, isClaiming } = useRewardsContract()
+    const { allMatches, userMatches, isLoadingMatches, refetchMatches, refetchUserMatches, totalEarned, rewardBalance, isClaimingRewards } = useTodosArenaContract()
 
     useEffect(() => {
         if (isConnected) {
@@ -84,7 +82,7 @@ export default function Dashboard() {
                     <StatCard icon={Trophy} label="Completed" value={completedMatches.length} color="from-green-500 to-emerald-500" />
                 </motion.div>
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-                    <StatCard icon={Coins} label="TODO Balance" value={parseFloat(tokenBalance).toFixed(0)} subValue={parseFloat(rewardBalance) > 0 ? `+${parseFloat(rewardBalance).toFixed(0)} claimable` : null} color="from-yellow-500 to-orange-500" />
+                    <StatCard icon={Coins} label="TODO Balance" value={parseFloat(totalEarned).toFixed(0)} subValue={parseFloat(rewardBalance) > 0 ? `+${parseFloat(rewardBalance).toFixed(0)} claimable` : null} color="from-yellow-500 to-orange-500" />
                 </motion.div>
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
                     <StatCard icon={TrendingUp} label="Active Now" value={activeMatches.length} color="from-blue-500 to-cyan-500" />

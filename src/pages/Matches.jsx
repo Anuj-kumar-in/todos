@@ -8,7 +8,7 @@ import Input from '../components/ui/Input'
 import { MatchStatusBadge } from '../components/ui/Badge'
 import { GAME_TYPE_ICONS, GAME_TYPE_NAMES } from '../config/contracts'
 import { getContractAddresses } from '../config/wagmi'
-import { useMatchContract } from '../hooks/useMatchContract'
+import { useTodosArenaContract } from '../hooks/useTodosArenaContract'
 import { useGeolocation } from '../hooks/useGeolocation'
 import { Loader } from '../components/ui/Loader'
 import { formatEther } from 'viem'
@@ -76,7 +76,7 @@ export default function Matches() {
     const [activeFilter, setActiveFilter] = useState('all')
     const [statusFilter, setStatusFilter] = useState('all')
     const [lastUpdate, setLastUpdate] = useState(null)
-    const { allMatches, isLoadingMatches, refetchMatches } = useMatchContract()
+    const { allMatches, isLoadingMatches, refetchMatches } = useTodosArenaContract()
     const { location, permissionStatus, requestLocation, loading: locationLoading } = useGeolocation()
 
     useEffect(() => {
