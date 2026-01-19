@@ -1,102 +1,110 @@
 import { useReadContract, useWriteContract, useAccount } from 'wagmi'
+import { parseEther } from 'viem'
 import { CONTRACT_ADDRESSES, RELAYER_ABI } from '../config/contracts'
 import toast from 'react-hot-toast'
 
 export function useRelayerContract() {
   const { address, chain } = useAccount()
   const chainId = chain?.id || 31337
-  
+
   // Get Relayer address for current chain
   const relayerAddress = CONTRACT_ADDRESSES[chainId]?.relayer
-  
+
   if (!relayerAddress) {
     console.error(`Relayer not deployed on chain ${chainId}`)
   }
 
-  // Write: Sign message on Relayer
+  // ==================== ACTION SUBMISSION ====================
+
+  // Write: Submit action to relayer (backend will listen to events)
   const { writeContractAsync: signMessageWrite, isPending: isSigningMessage } =
     useWriteContract()
 
-  const signMessage = async (messageType, matchId, messageData, signature) => {
+  // Keep function name but change implementation to submitAction
+  const signMessage = async (actionType, matchId, actionData) => {
     try {
+      // Convert old messageType to actionType enum
+      // ActionType: CREATE_MATCH=0, JOIN_MATCH=1, START_VOTING=2, SUBMIT_VOTE=3, WITHDRAW_REWARDS=4
+
       const tx = await signMessageWrite({
         address: relayerAddress,
         abi: RELAYER_ABI,
-        functionName: 'signMessage',
-        args: [messageType, matchId, messageData, signature],
+        functionName: 'submitAction',
+        args: [actionType, matchId, actionData],
       })
-      toast.success('Message signed on Relayer!')
+      toast.success('Action submitted! Backend processing...')
       return tx
     } catch (error) {
-      console.error('Sign message error:', error)
-      toast.error(error.shortMessage || 'Failed to sign message')
+      console.error('Submit action error:', error)
+      toast.error(error.shortMessage || 'Failed to submit action')
       throw error
     }
   }
 
-  // Write: Record stake sent to deployer
+  // ==================== STAKE MANAGEMENT ====================
+
+  // Write: Send stake directly to deployer
   const { writeContractAsync: recordStakeWrite, isPending: isRecordingStake } =
     useWriteContract()
 
-  const recordStake = async (user, matchId, amount) => {
+  // Keep function name but change to sendStake implementation
+  const recordStake = async (matchId, amount) => {
     try {
       const tx = await recordStakeWrite({
         address: relayerAddress,
         abi: RELAYER_ABI,
-        functionName: 'recordStake',
-        args: [user, matchId, amount],
+        functionName: 'sendStake',
+        args: [matchId],
+        value: parseEther(amount.toString()),
       })
-      toast.success('Stake recorded on Relayer!')
+      toast.success('Stake sent! Joining match...')
       return tx
     } catch (error) {
-      console.error('Record stake error:', error)
-      toast.error(error.shortMessage || 'Failed to record stake')
+      console.error('Send stake error:', error)
+      toast.error(error.shortMessage || 'Failed to send stake')
       throw error
     }
   }
 
-  // Read: Get user messages
+  // ==================== VIEW FUNCTIONS ====================
+
+  // Read: Get user actions (renamed from getUserMessages)
   const useGetUserMessages = () => {
     return useReadContract({
       address: relayerAddress,
       abi: RELAYER_ABI,
-      functionName: 'getUserMessages',
+      functionName: 'getUserActions',
       args: [address],
       query: { enabled: !!address && !!relayerAddress },
     })
   }
 
-  // Read: Get single message
-  const useGetMessage = (messageId) => {
+  // Read: Get single action (renamed from getMessage)
+  const useGetMessage = (actionId) => {
     return useReadContract({
       address: relayerAddress,
       abi: RELAYER_ABI,
-      functionName: 'getMessage',
-      args: [messageId],
-      query: { enabled: !!messageId && !!relayerAddress },
+      functionName: 'getAction',
+      args: [actionId],
+      query: { enabled: !!actionId && !!relayerAddress },
     })
   }
 
-  // Read: Get stake record
+  // Read: Get stake - DEPRECATED (returns null for backward compatibility)
   const useGetStake = (stakeId) => {
-    return useReadContract({
-      address: relayerAddress,
-      abi: RELAYER_ABI,
-      functionName: 'getStake',
-      args: [stakeId],
-      query: { enabled: !!stakeId && !!relayerAddress },
-    })
+    console.warn('getStake is deprecated - stakes are tracked off-chain')
+    return { data: null }
   }
 
   return {
     relayerAddress,
-    signMessage,
+    signMessage, // Now calls submitAction internally
     isSigningMessage,
-    recordStake,
+    recordStake, // Now calls sendStake internally
     isRecordingStake,
-    useGetUserMessages,
-    useGetMessage,
-    useGetStake,
+    useGetUserMessages, // Now returns actions
+    useGetMessage, // Now returns action
+    useGetStake, // Deprecated
     currentChainId: chainId,
   }
 }

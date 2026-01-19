@@ -3,198 +3,164 @@ pragma solidity ^0.8.20;
 
 /**
  * @title Relayer
- * @dev Deployed on every network. Signs user messages and stores local transaction references.
- * Users interact with this contract on their preferred network.
+ * @dev Deployed on every EVM network
+ * Users interact with this contract - emits events that backend listens to
+ * Backend then calls TodosArena functions using deployer's private key
  */
 contract Relayer {
     
-    address public admin;
-    address public deployer; // Account that receives stakes
+    address public deployer; // Deployer account (receives stakes, sends rewards)
+    address public backend; // Backend service address
     
-    // Enum for message types
-    enum MessageType {
+    // Enum for action types
+    enum ActionType {
         CREATE_MATCH,
         JOIN_MATCH,
         START_VOTING,
         SUBMIT_VOTE,
-        CLAIM_REWARDS
+        WITHDRAW_REWARDS
     }
     
-    // User message struct
-    struct UserMessage {
-        uint256 messageId;
+    // User action struct
+    struct UserAction {
+        uint256 actionId;
         address user;
-        MessageType messageType;
+        ActionType actionType;
         uint256 matchId;
-        bytes messageData; // Encoded data for the action
-        bytes signature; // User's signature
+        bytes actionData;
         uint256 timestamp;
-        uint256 chainId; // Network where user initiated
-        bool executed; // Whether admin has processed this on TodosArena
+        uint256 chainId;
+        bool processed; // Marked true by backend after processing
     }
     
-    // Stake tracking for this network
-    struct StakeRecord {
-        address user;
-        uint256 matchId;
-        uint256 amount;
-        uint256 timestamp;
-        bool verified; // Verified that funds were received by deployer
-    }
+    mapping(uint256 => UserAction) public actions;
+    mapping(address => uint256[]) public userActions;
     
-    mapping(uint256 => UserMessage) public messages;
-    mapping(address => uint256[]) public userMessages;
-    mapping(uint256 => StakeRecord) public stakes;
+    uint256 public actionCounter;
     
-    uint256 public messageCounter;
-    uint256 public stakeCounter;
-    
-    event MessageSigned(
-        uint256 indexed messageId,
+    event ActionSubmitted(
+        uint256 indexed actionId,
         address indexed user,
-        MessageType messageType,
+        ActionType actionType,
         uint256 indexed matchId,
-        uint256 timestamp
+        uint256 timestamp,
+        uint256 chainId
     );
     
-    event StakeRecorded(
-        uint256 indexed stakeId,
+    event ActionProcessed(
+        uint256 indexed actionId,
+        address indexed user,
+        bool success
+    );
+    
+    event StakeReceived(
         address indexed user,
         uint256 indexed matchId,
         uint256 amount,
         uint256 timestamp
     );
     
-    event StakeVerified(
-        uint256 indexed stakeId,
+    event RewardSent(
         address indexed user,
-        uint256 indexed matchId,
-        bool verified
+        uint256 amount,
+        uint256 timestamp
     );
-    
-    event MessageExecuted(
-        uint256 indexed messageId,
-        address indexed user,
-        bool success
-    );
-    
-    modifier onlyAdmin() {
-        require(msg.sender == admin, "Only admin can call this");
-        _;
-    }
     
     modifier onlyDeployer() {
         require(msg.sender == deployer, "Only deployer can call this");
         _;
     }
     
-    constructor(address _admin, address _deployer) {
-        admin = _admin;
+    modifier onlyBackend() {
+        require(msg.sender == backend, "Only backend can call this");
+        _;
+    }
+    
+    constructor(address _deployer, address _backend) {
         deployer = _deployer;
+        backend = _backend;
     }
     
     /**
-     * @dev User signs and creates a message on their network
-     * User will sign this message using their wallet (MetaMask, etc.)
+     * @dev User submits action - backend listens to event
      */
-    function signMessage(
-        MessageType _messageType,
+    function submitAction(
+        ActionType _actionType,
         uint256 _matchId,
-        bytes calldata _messageData,
-        bytes calldata _signature
+        bytes calldata _actionData
     ) external returns (uint256) {
-        require(_messageData.length > 0, "Message data required");
+        actionCounter++;
+        uint256 actionId = actionCounter;
         
-        messageCounter++;
-        uint256 messageId = messageCounter;
+        UserAction storage userAction = actions[actionId];
+        userAction.actionId = actionId;
+        userAction.user = msg.sender;
+        userAction.actionType = _actionType;
+        userAction.matchId = _matchId;
+        userAction.actionData = _actionData;
+        userAction.timestamp = block.timestamp;
+        userAction.chainId = block.chainid;
+        userAction.processed = false;
         
-        UserMessage storage userMessage = messages[messageId];
-        userMessage.messageId = messageId;
-        userMessage.user = msg.sender;
-        userMessage.messageType = _messageType;
-        userMessage.matchId = _matchId;
-        userMessage.messageData = _messageData;
-        userMessage.signature = _signature;
-        userMessage.timestamp = block.timestamp;
-        userMessage.chainId = block.chainid;
-        userMessage.executed = false;
+        userActions[msg.sender].push(actionId);
         
-        userMessages[msg.sender].push(messageId);
-        
-        emit MessageSigned(
-            messageId,
+        emit ActionSubmitted(
+            actionId,
             msg.sender,
-            _messageType,
+            _actionType,
             _matchId,
-            block.timestamp
+            block.timestamp,
+            block.chainid
         );
         
-        return messageId;
+        return actionId;
     }
     
     /**
-     * @dev Record stake sent by user to deployer's account
-     * User must have already sent funds directly to deployer before calling this
-     * Admin will verify that funds were actually received
+     * @dev User sends stake to deployer for match entry
+     * Deployer's account will bridge funds to TodosArena network
      */
-    function recordStake(
-        address _user,
-        uint256 _matchId,
-        uint256 _amount
-    ) external onlyDeployer returns (uint256) {
-        require(_amount > 0, "Stake amount must be positive");
+    function sendStake(uint256 _matchId) external payable {
+        require(msg.value > 0, "Stake amount must be positive");
         
-        stakeCounter++;
-        uint256 stakeId = stakeCounter;
+        // Transfer to deployer
+        (bool sent, ) = deployer.call{value: msg.value}("");
+        require(sent, "Failed to send stake");
         
-        StakeRecord storage stake = stakes[stakeId];
-        stake.user = _user;
-        stake.matchId = _matchId;
-        stake.amount = _amount;
-        stake.timestamp = block.timestamp;
-        stake.verified = false;
-        
-        emit StakeRecorded(stakeId, _user, _matchId, _amount, block.timestamp);
-        
-        return stakeId;
+        emit StakeReceived(msg.sender, _matchId, msg.value, block.timestamp);
     }
     
     /**
-     * @dev Admin verifies that stake was received on deployer's account
-     * Admin calls this after confirming the blockchain transaction
+     * @dev Backend marks action as processed after calling TodosArena
      */
-    function verifyStake(uint256 _stakeId) external onlyAdmin {
-        StakeRecord storage stake = stakes[_stakeId];
-        require(!stake.verified, "Stake already verified");
+    function markActionProcessed(uint256 _actionId, bool _success) external onlyBackend {
+        UserAction storage userAction = actions[_actionId];
+        require(!userAction.processed, "Action already processed");
         
-        stake.verified = true;
+        userAction.processed = true;
         
-        emit StakeVerified(_stakeId, stake.user, stake.matchId, true);
+        emit ActionProcessed(_actionId, userAction.user, _success);
     }
     
     /**
-     * @dev Mark message as executed on TodosArena by admin
+     * @dev Deployer sends rewards to user (bridged from TodosArena network)
      */
-    function markMessageExecuted(uint256 _messageId, bool _success) external onlyAdmin {
-        UserMessage storage userMessage = messages[_messageId];
-        require(!userMessage.executed, "Message already executed");
-
-        userMessage.executed = true;
-
-        emit MessageExecuted(_messageId, userMessage.user, _success);
+    function sendReward(address _user, uint256 _amount) external onlyDeployer {
+        require(_amount > 0, "Reward amount must be positive");
+        
+        (bool sent, ) = _user.call{value: _amount}("");
+        require(sent, "Failed to send reward");
+        
+        emit RewardSent(_user, _amount, block.timestamp);
     }
     
     // View functions
-    function getUserMessages(address _user) external view returns (uint256[] memory) {
-        return userMessages[_user];
+    function getUserActions(address _user) external view returns (uint256[] memory) {
+        return userActions[_user];
     }
     
-    function getMessage(uint256 _messageId) external view returns (UserMessage memory) {
-        return messages[_messageId];
-    }
-    
-    function getStake(uint256 _stakeId) external view returns (StakeRecord memory) {
-        return stakes[_stakeId];
+    function getAction(uint256 _actionId) external view returns (UserAction memory) {
+        return actions[_actionId];
     }
     
     function getCurrentChainId() external view returns (uint256) {
@@ -202,13 +168,24 @@ contract Relayer {
     }
     
     // Admin management
-    function setAdmin(address _newAdmin) external onlyAdmin {
-        require(_newAdmin != address(0), "Invalid admin address");
-        admin = _newAdmin;
+    function setBackend(address _newBackend) external onlyDeployer {
+        require(_newBackend != address(0), "Invalid backend address");
+        backend = _newBackend;
     }
     
-    function setDeployer(address _newDeployer) external onlyAdmin {
+    function setDeployer(address _newDeployer) external onlyDeployer {
         require(_newDeployer != address(0), "Invalid deployer address");
         deployer = _newDeployer;
     }
+    
+    // Emergency withdraw for deployer
+    function withdrawBalance() external onlyDeployer {
+        uint256 balance = address(this).balance;
+        require(balance > 0, "No balance to withdraw");
+        
+        (bool sent, ) = deployer.call{value: balance}("");
+        require(sent, "Failed to withdraw");
+    }
+    
+    receive() external payable {}
 }

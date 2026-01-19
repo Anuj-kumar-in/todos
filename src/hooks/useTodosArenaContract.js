@@ -4,16 +4,17 @@ import {
   useWaitForTransactionReceipt,
   useAccount,
 } from 'wagmi'
-import { parseEther, formatEther } from 'viem'
+import { parseEther, formatEther, toHex } from 'viem'
 import { CONTRACT_ADDRESSES, TODO_ARENA_ABI } from '../config/contracts'
 import toast from 'react-hot-toast'
 
 export function useTodosArenaContract() {
-  const { address } = useAccount()
-  
-  // TodosArena is always on primary network
-  const todoArenaAddress = CONTRACT_ADDRESSES.primary?.todosArena
-  
+  const { address, chain } = useAccount()
+  const chainId = chain?.id || 31337
+
+  // TodosArena is on the current chain for local/test, primary for mainnet
+  const todoArenaAddress = CONTRACT_ADDRESSES[chainId]?.todosArena || CONTRACT_ADDRESSES.primary?.todosArena
+
   if (!todoArenaAddress) {
     console.error('TodosArena not deployed on primary network')
   }
@@ -45,6 +46,7 @@ export function useTodosArenaContract() {
   })
 
   // ==================== MATCH WRITE FUNCTIONS ====================
+  // NOTE: These now submit actions to Relayer, not TodosArena directly
 
   const { writeContractAsync: createMatchWrite, isPending: isCreatingMatch } =
     useWriteContract()
@@ -58,22 +60,52 @@ export function useTodosArenaContract() {
     votingDuration
   ) => {
     try {
-      const tx = await createMatchWrite({
-        address: todoArenaAddress,
-        abi: TODO_ARENA_ABI,
-        functionName: 'createMatch',
-        args: [
+      // Get Relayer address for current chain
+      const relayerAddress = CONTRACT_ADDRESSES[chainId]?.relayer
+
+      if (!relayerAddress) {
+        throw new Error('Relayer not available on this network')
+      }
+
+      // Encode action data
+      const actionData = new TextEncoder().encode(
+        JSON.stringify({
           title,
           description,
           gameType,
-          parseEther(entryStake),
+          entryStake,
           maxParticipants,
           votingDuration,
+        })
+      )
+
+      // Submit to Relayer instead of TodosArena
+      const tx = await createMatchWrite({
+        address: relayerAddress,
+        abi: [
+          {
+            name: 'submitAction',
+            type: 'function',
+            inputs: [
+              { name: '_actionType', type: 'uint8' },
+              { name: '_matchId', type: 'uint256' },
+              { name: '_actionData', type: 'bytes' },
+            ],
+            outputs: [{ type: 'uint256' }],
+          },
         ],
+        functionName: 'submitAction',
+        args: [0, 0, toHex(actionData)], // ActionType.CREATE_MATCH = 0, matchId = 0 for new match
       })
-      toast.success('Match created!')
-      refetchMatches()
-      refetchCounter()
+
+      toast.success('Match creation submitted! Backend processing...')
+
+      // Refetch after delay to allow backend to process
+      setTimeout(() => {
+        refetchMatches()
+        refetchCounter()
+      }, 3000)
+
       return tx
     } catch (error) {
       console.error('Create match error:', error)
@@ -83,6 +115,7 @@ export function useTodosArenaContract() {
   }
 
   // ==================== CROSS-CHAIN STAKE FUNCTIONS ====================
+  // DEPRECATED: Removed in new architecture
 
   const {
     writeContractAsync: registerStakeWrite,
@@ -96,20 +129,9 @@ export function useTodosArenaContract() {
     chainId,
     relayerStakeId
   ) => {
-    try {
-      const tx = await registerStakeWrite({
-        address: todoArenaAddress,
-        abi: TODO_ARENA_ABI,
-        functionName: 'registerStakeVerification',
-        args: [user, matchId, parseEther(amount), chainId, relayerStakeId],
-      })
-      toast.success('Stake verification registered!')
-      return tx
-    } catch (error) {
-      console.error('Register stake error:', error)
-      toast.error(error.shortMessage || 'Failed to register stake')
-      throw error
-    }
+    console.warn('registerStakeVerification is deprecated - use Relayer.sendStake()')
+    toast.error('This function is no longer available. Use "Join Match" button.')
+    throw new Error('Deprecated function')
   }
 
   const {
@@ -118,21 +140,9 @@ export function useTodosArenaContract() {
   } = useWriteContract()
 
   const confirmStakeAndJoinMatch = async (verificationId) => {
-    try {
-      const tx = await confirmStakeWrite({
-        address: todoArenaAddress,
-        abi: TODO_ARENA_ABI,
-        functionName: 'confirmStakeAndJoinMatch',
-        args: [verificationId],
-      })
-      toast.success('Stake confirmed! You joined the match!')
-      refetchMatches()
-      return tx
-    } catch (error) {
-      console.error('Confirm stake error:', error)
-      toast.error(error.shortMessage || 'Failed to confirm stake')
-      throw error
-    }
+    console.warn('confirmStakeAndJoinMatch is deprecated - backend handles this')
+    toast.error('This function is no longer available. Backend processes joins automatically.')
+    throw new Error('Deprecated function')
   }
 
   // ==================== VOTING FUNCTIONS ====================
@@ -142,13 +152,38 @@ export function useTodosArenaContract() {
 
   const submitVote = async (matchId, winnerAddresses) => {
     try {
+      // Get Relayer address for current chain
+      const relayerAddress = CONTRACT_ADDRESSES[chainId]?.relayer
+
+      if (!relayerAddress) {
+        throw new Error('Relayer not available on this network')
+      }
+
+      // Encode winner addresses as action data
+      const actionData = new TextEncoder().encode(
+        JSON.stringify({ winners: winnerAddresses })
+      )
+
+      // Submit vote action to Relayer
       const tx = await submitVoteWrite({
-        address: todoArenaAddress,
-        abi: TODO_ARENA_ABI,
-        functionName: 'submitVote',
-        args: [matchId, winnerAddresses],
+        address: relayerAddress,
+        abi: [
+          {
+            name: 'submitAction',
+            type: 'function',
+            inputs: [
+              { name: '_actionType', type: 'uint8' },
+              { name: '_matchId', type: 'uint256' },
+              { name: '_actionData', type: 'bytes' },
+            ],
+            outputs: [{ type: 'uint256' }],
+          },
+        ],
+        functionName: 'submitAction',
+        args: [3, matchId, toHex(actionData)], // ActionType.SUBMIT_VOTE = 3
       })
-      toast.success('Vote submitted!')
+
+      toast.success('Vote submitted! Backend processing...')
       return tx
     } catch (error) {
       console.error('Submit vote error:', error)
@@ -161,20 +196,9 @@ export function useTodosArenaContract() {
     useWriteContract()
 
   const finalizeVoting = async (matchId) => {
-    try {
-      const tx = await finalizeVotingWrite({
-        address: todoArenaAddress,
-        abi: TODO_ARENA_ABI,
-        functionName: 'finalizeVoting',
-        args: [matchId],
-      })
-      toast.success('Voting finalized!')
-      return tx
-    } catch (error) {
-      console.error('Finalize voting error:', error)
-      toast.error(error.shortMessage || 'Failed to finalize voting')
-      throw error
-    }
+    console.warn('finalizeVoting should be called by backend/admin only')
+    toast.error('Only admin can finalize voting')
+    throw new Error('Admin-only function')
   }
 
   const useGetVotingSession = (matchId) => {
@@ -230,15 +254,50 @@ export function useTodosArenaContract() {
 
   const claimAllRewards = async () => {
     try {
-      const tx = await claimRewardsWrite({
-        address: todoArenaAddress,
-        abi: TODO_ARENA_ABI,
-        functionName: 'claimAllRewards',
-      })
-      toast.success('Rewards claimed!')
-      refetchRewardBalance()
-      refetchTotalEarned()
-      return tx
+      // Users can still claim rewards directly from TodosArena
+      // Or submit claim action to Relayer for cross-chain rewards
+
+      const relayerAddress = CONTRACT_ADDRESSES[chainId]?.relayer
+      const isOnPrimaryNetwork = chainId === CONTRACT_ADDRESSES.primaryChainId
+
+      if (isOnPrimaryNetwork) {
+        // Direct claim from TodosArena
+        const tx = await claimRewardsWrite({
+          address: todoArenaAddress,
+          abi: TODO_ARENA_ABI,
+          functionName: 'claimAllRewards',
+        })
+        toast.success('Rewards claimed!')
+        refetchRewardBalance()
+        refetchTotalEarned()
+        return tx
+      } else {
+        // Submit claim action to Relayer for bridging
+        const actionData = new TextEncoder().encode(
+          JSON.stringify({ claimAll: true })
+        )
+
+        const tx = await claimRewardsWrite({
+          address: relayerAddress,
+          abi: [
+            {
+              name: 'submitAction',
+              type: 'function',
+              inputs: [
+                { name: '_actionType', type: 'uint8' },
+                { name: '_matchId', type: 'uint256' },
+                { name: '_actionData', type: 'bytes' },
+              ],
+              outputs: [{ type: 'uint256' }],
+            },
+          ],
+          functionName: 'submitAction',
+          args: [4, 0, toHex(actionData)], // ActionType.WITHDRAW_REWARDS = 4
+        })
+
+        toast.success('Claim request submitted! Backend will bridge rewards...')
+        return tx
+      }
     } catch (error) {
       console.error('Claim rewards error:', error)
       toast.error(error.shortMessage || 'Failed to claim rewards')
@@ -248,15 +307,47 @@ export function useTodosArenaContract() {
 
   const claimMatchRewards = async (matchId) => {
     try {
-      const tx = await claimRewardsWrite({
-        address: todoArenaAddress,
-        abi: TODO_ARENA_ABI,
-        functionName: 'claimRewards',
-        args: [matchId],
-      })
-      toast.success('Match rewards claimed!')
-      refetchRewardBalance()
-      return tx
+      const relayerAddress = CONTRACT_ADDRESSES[chainId]?.relayer
+      const isOnPrimaryNetwork = chainId === CONTRACT_ADDRESSES.primaryChainId
+
+      if (isOnPrimaryNetwork) {
+        // Direct claim from TodosArena
+        const tx = await claimRewardsWrite({
+          address: todoArenaAddress,
+          abi: TODO_ARENA_ABI,
+          functionName: 'claimRewards',
+          args: [matchId],
+        })
+        toast.success('Match rewards claimed!')
+        refetchRewardBalance()
+        return tx
+      } else {
+        // Submit claim action to Relayer
+        const actionData = new TextEncoder().encode(
+          JSON.stringify({ matchId })
+        )
+
+        const tx = await claimRewardsWrite({
+          address: relayerAddress,
+          abi: [
+            {
+              name: 'submitAction',
+              type: 'function',
+              inputs: [
+                { name: '_actionType', type: 'uint8' },
+                { name: '_matchId', type: 'uint256' },
+                { name: '_actionData', type: 'bytes' },
+              ],
+              outputs: [{ type: 'uint256' }],
+            },
+          ],
+          functionName: 'submitAction',
+          args: [4, matchId, toHex(actionData)], // ActionType.WITHDRAW_REWARDS = 4
+        })
+
+        toast.success('Claim request submitted! Backend will bridge rewards...')
+        return tx
+      }
     } catch (error) {
       console.error('Claim match rewards error:', error)
       toast.error(error.shortMessage || 'Failed to claim rewards')
@@ -302,26 +393,26 @@ export function useTodosArenaContract() {
     allMatches,
     userMatches,
     isLoadingMatches,
-    
-    // Match functions
+
+    // Match functions (now route through Relayer)
     createMatch,
     isCreatingMatch,
-    
-    // Cross-chain stake functions
+
+    // Cross-chain stake functions (DEPRECATED)
     registerStakeVerification,
     isRegisteringStake,
     confirmStakeAndJoinMatch,
     isConfirmingStake,
-    
-    // Voting functions
+
+    // Voting functions (route through Relayer)
     submitVote,
     isVoting,
-    finalizeVoting,
+    finalizeVoting, // Admin only
     isFinalizingVoting,
     useGetVotingSession,
     useHasVoted,
     useFinalWinners,
-    
+
     // Reward functions
     rewardBalance: rewardBalance ? formatEther(rewardBalance) : '0',
     totalEarned: totalEarned ? formatEther(totalEarned) : '0',
@@ -329,18 +420,18 @@ export function useTodosArenaContract() {
     claimMatchRewards,
     isClaimingRewards,
     useGetRewardPool,
-    
+
     // View functions
     useGetMatch,
     useGetMatchParticipants,
-    
+
     // Refetch functions
     refetchMatches,
     refetchUserMatches,
     refetchCounter,
     refetchRewardBalance,
     refetchTotalEarned,
-    
+
     // Contract address
     todoArenaAddress,
   }
