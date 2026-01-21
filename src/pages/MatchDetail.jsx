@@ -35,7 +35,7 @@ export default function MatchDetail() {
     const [selectedWinners, setSelectedWinners] = useState([])
 
     // Contract Hooks
-    const { confirmStakeAndJoinMatch, isConfirmingStake, finalizeVoting, isFinalizingVoting, submitVote, isVoting, useGetMatch, refetchMatches } = useTodosArenaContract()
+    const { joinMatch, isJoiningMatch, startMatch, isStartingMatch, startVotingPhase, isStartingVoting, finalizeVoting, isFinalizingVoting, submitVote, isVoting, useGetMatch, useGetMatchParticipantsWithNetwork, refetchMatches } = useTodosArenaContract()
 
     // AI Hooks
     const {
@@ -52,14 +52,8 @@ export default function MatchDetail() {
     // Fetch match data using the proper hook
     const { data: matchData, isLoading: isLoadingMatch, refetch: refetchMatch } = useGetMatch(matchId)
 
-    // Fetch participants
-const { data: participants, isLoading: isLoadingParticipants, refetch: refetchParticipants } = useReadContract({
-    address: addresses.matchContract,
-    abi: TODO_ARENA_ABI,
-    functionName: 'getMatchParticipants',
-    args: [matchId],
-})
-
+    // Fetch participants with network info
+    const { data: participantsWithNetwork, isLoading: isLoadingParticipants, refetch: refetchParticipants } = useGetMatchParticipantsWithNetwork(matchId)
 
     useEffect(() => {
         refetchMatch()
@@ -109,7 +103,11 @@ const { data: participants, isLoading: isLoadingParticipants, refetch: refetchPa
             await submitVote(matchId, aiResult.winners)
             setShowAIResult(false)
             resetAIResult()
-            toast.success('Vote submitted based on AI result!')
+            // Wait for backend processing
+            setTimeout(async () => {
+                await refetchMatch()
+                toast.success('Vote submitted based on AI result!')
+            }, 3000)
         } catch (error) {
             console.error(error)
         }
@@ -150,7 +148,10 @@ const { data: participants, isLoading: isLoadingParticipants, refetch: refetchPa
     }
 
     const match = matchData
-    const participantsList = participants || []
+    // Transform participants data - handle both old (address[]) and new (Participant[]) format
+    const participantsList = participantsWithNetwork ?
+        participantsWithNetwork.map(p => typeof p === 'string' ? p : p.addr) : []
+    const participantsData = participantsWithNetwork || []
     const formatAddress = (addr) => `${addr.slice(0, 6)}...${addr.slice(-4)}`
     const copyAddress = (addr) => { navigator.clipboard.writeText(addr); toast.success('Address copied!') }
 
@@ -181,9 +182,12 @@ const { data: participants, isLoading: isLoadingParticipants, refetch: refetchPa
     const handleJoin = async () => {
         if (!isConnected) { toast.error('Connect wallet first'); return }
         try {
-            await joinMatch(matchId, formatEther(match.entryStake))
-            await Promise.all([refetchMatch(), refetchParticipants()])
-            toast.success('Successfully joined the match!')
+            await joinMatch(matchId)
+            // Wait for backend processing
+            setTimeout(async () => {
+                await Promise.all([refetchMatch(), refetchParticipants()])
+                toast.success('Successfully joined the match!')
+            }, 3000)
         } catch (error) {
             console.error(error)
             toast.error('Failed to join match')
@@ -228,9 +232,11 @@ const { data: participants, isLoading: isLoadingParticipants, refetch: refetchPa
             await submitVote(matchId, selectedWinners)
             setShowVoteModal(false)
             setSelectedWinners([])
-            toast.success('Vote submitted successfully!')
-            // Refresh match data to show updated voting status
-            await refetchMatch()
+            // Wait for backend processing
+            setTimeout(async () => {
+                await refetchMatch()
+                toast.success('Vote submitted successfully!')
+            }, 3000)
         } catch (error) {
             console.error(error)
             toast.error('Failed to submit vote')
@@ -317,29 +323,40 @@ const { data: participants, isLoading: isLoadingParticipants, refetch: refetchPa
                         <CardContent className="space-y-3">
                             {isLoadingParticipants ? (
                                 <div className="flex justify-center py-4"><Loader /></div>
-                            ) : participantsList.length > 0 ? (
-                                participantsList.map((participant, index) => (
-                                    <div key={participant} className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-500 to-purple-500 flex items-center justify-center">
-                                                <User className="w-5 h-5 text-white" />
-                                            </div>
-                                            <div>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-white font-medium">{formatAddress(participant)}</span>
-                                                    {participant.toLowerCase() === match.creator?.toLowerCase() && (
-                                                        <span className="px-2 py-0.5 rounded-full text-xs bg-primary-500/20 text-primary-400 border border-primary-500/30">Creator</span>
-                                                    )}
-                                                    {participant.toLowerCase() === address?.toLowerCase() && (
-                                                        <span className="px-2 py-0.5 rounded-full text-xs bg-green-500/20 text-green-400 border border-green-500/30">You</span>
-                                                    )}
+                            ) : participantsData.length > 0 ? (
+                                participantsData.map((participant, index) => {
+                                    const addr = typeof participant === 'string' ? participant : participant.addr
+                                    const networkName = typeof participant === 'object' ? participant.networkName : null
+                                    return (
+                                        <div key={addr} className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-500 to-purple-500 flex items-center justify-center">
+                                                    <User className="w-5 h-5 text-white" />
                                                 </div>
-                                                <div className="text-xs text-gray-500">Player #{index + 1}</div>
+                                                <div>
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <span className="text-white font-medium">{formatAddress(addr)}</span>
+                                                        {addr.toLowerCase() === match.creator?.toLowerCase() && (
+                                                            <span className="px-2 py-0.5 rounded-full text-xs bg-primary-500/20 text-primary-400 border border-primary-500/30">Creator</span>
+                                                        )}
+                                                        {addr.toLowerCase() === address?.toLowerCase() && (
+                                                            <span className="px-2 py-0.5 rounded-full text-xs bg-green-500/20 text-green-400 border border-green-500/30">You</span>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        <span className="text-xs text-gray-500">Player #{index + 1}</span>
+                                                        {networkName && (
+                                                            <span className="px-2 py-0.5 rounded-full text-xs bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                                                                {networkName}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
                                             </div>
+                                            <button onClick={() => copyAddress(addr)} className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10"><Copy className="w-4 h-4" /></button>
                                         </div>
-                                        <button onClick={() => copyAddress(participant)} className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10"><Copy className="w-4 h-4" /></button>
-                                    </div>
-                                ))
+                                    )
+                                })
                             ) : (
                                 <div className="text-center py-4 text-gray-500">No participants yet</div>
                             )}

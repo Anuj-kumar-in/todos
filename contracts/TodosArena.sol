@@ -3,24 +3,16 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 
 /**
  * @title TodosArena
  * @dev Single network deployment - stores ALL user data, matches, and rewards
- * Backend calls this contract using deployer's private key after receiving relayer events
+ * Only the deployer (owner) can call write functions
  */
-contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burnable {
+contract TodosArena is Ownable, ReentrancyGuard, ERC20, ERC20Burnable {
     
-    bytes32 public constant ORACLE_ROLE = keccak256("ORACLE_ROLE");
-    bytes32 public constant DISTRIBUTOR_ROLE = keccak256("DISTRIBUTOR_ROLE");
-    bytes32 public constant VOTING_MANAGER_ROLE = keccak256("VOTING_MANAGER_ROLE");
-    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
-    bytes32 public constant BURNER_ROLE = keccak256("BURNER_ROLE");
-    bytes32 public constant BACKEND_ROLE = keccak256("BACKEND_ROLE"); // Backend service role
-
     uint256 public constant TOTAL_SUPPLY = 1_000_000_000 * 10**18; // 1 Billion TODO
 
     // Enum for game and match types
@@ -40,7 +32,14 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
         CANCELLED
     }
 
-    // Match struct - simplified without cross-chain data
+    // Participant info
+    struct Participant {
+        address addr;
+        string networkName;
+        uint256 joinedAt;
+    }
+
+    // Match struct
     struct Match {
         uint256 id;
         address creator;
@@ -107,6 +106,9 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
     uint256 public matchCounter;
     mapping(uint256 => Match) public matches;
     mapping(address => uint256[]) public userMatches;
+    
+    // Participant info per match
+    mapping(uint256 => Participant[]) public matchParticipants;
 
     // Voting state
     mapping(uint256 => VotingSession) public votingSessions;
@@ -138,6 +140,7 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
     event ParticipantJoined(
         uint256 indexed matchId,
         address indexed participant,
+        string networkName,
         uint256 entryStakePaid
     );
 
@@ -213,26 +216,10 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
         _;
     }
 
-    modifier onlyCreator(uint256 _matchId) {
-        require(
-            msg.sender == matches[_matchId].creator,
-            "Only match creator can call this"
-        );
-        _;
-    }
-
     modifier matchInStatus(uint256 _matchId, MatchStatus _status) {
         require(
             matches[_matchId].status == _status,
             "Invalid match status for this operation"
-        );
-        _;
-    }
-
-    modifier votingActive(uint256 _matchId) {
-        require(
-            block.timestamp < votingSessions[_matchId].votingEndTime,
-            "Voting period has ended"
         );
         _;
     }
@@ -246,20 +233,13 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
     }
 
     constructor() ERC20("TODO Arena Token", "TODO") Ownable(msg.sender) {
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _grantRole(ORACLE_ROLE, msg.sender);
-        _grantRole(DISTRIBUTOR_ROLE, msg.sender);
-        _grantRole(VOTING_MANAGER_ROLE, msg.sender);
-        _grantRole(MINTER_ROLE, msg.sender);
-        _grantRole(BURNER_ROLE, msg.sender);
-        _grantRole(BACKEND_ROLE, msg.sender); // Backend service role
         platformFeeRecipient = msg.sender;
     }
 
     // ==================== MATCH FUNCTIONS ====================
 
     /**
-     * @dev Create match - called by backend after receiving relayer event
+     * @dev Create match - only owner
      */
     function createMatch(
         address _creator,
@@ -269,7 +249,7 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
         uint256 _entryStake,
         uint256 _maxParticipants,
         uint256 _votingDuration
-    ) external onlyRole(BACKEND_ROLE) returns (uint256) {
+    ) external onlyOwner returns (uint256) {
         require(bytes(_title).length > 0, "Title required");
         require(_entryStake > 0, "Entry stake must be greater than 0");
         require(_maxParticipants >= 2, "Need at least 2 participants");
@@ -305,11 +285,11 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
     }
 
     /**
-     * @dev Join match - called by backend after verifying stake payment
+     * @dev Join match - only owner
      */
-    function joinMatch(uint256 _matchId, address _participant)
+    function joinMatch(uint256 _matchId, address _participant, string memory _networkName)
         external
-        onlyRole(BACKEND_ROLE)
+        onlyOwner
         matchExists(_matchId)
         matchInStatus(_matchId, MatchStatus.CREATED)
     {
@@ -324,8 +304,15 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
         _match.participants.push(_participant);
         _match.totalPrizePool += _match.entryStake;
         userMatches[_participant].push(_matchId);
+        
+        // Store participant info with network
+        matchParticipants[_matchId].push(Participant({
+            addr: _participant,
+            networkName: _networkName,
+            joinedAt: block.timestamp
+        }));
 
-        emit ParticipantJoined(_matchId, _participant, _match.entryStake);
+        emit ParticipantJoined(_matchId, _participant, _networkName, _match.entryStake);
 
         // Auto-start if full
         if (_match.participants.length == _match.maxParticipants) {
@@ -344,7 +331,7 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
 
     function startMatch(uint256 _matchId)
         external
-        onlyRole(BACKEND_ROLE)
+        onlyOwner
         matchExists(_matchId)
         matchInStatus(_matchId, MatchStatus.CREATED)
     {
@@ -354,7 +341,7 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
 
     function submitAIReport(uint256 _matchId, bytes32 _reportHash)
         external
-        onlyRole(ORACLE_ROLE)
+        onlyOwner
         matchExists(_matchId)
         matchInStatus(_matchId, MatchStatus.ACTIVE)
     {
@@ -367,7 +354,7 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
 
     function startVotingPhase(uint256 _matchId)
         external
-        onlyRole(BACKEND_ROLE)
+        onlyOwner
         matchExists(_matchId)
         matchInStatus(_matchId, MatchStatus.ACTIVE)
     {
@@ -386,7 +373,7 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
 
     function completeMatch(uint256 _matchId)
         external
-        onlyRole(ORACLE_ROLE)
+        onlyOwner
         matchExists(_matchId)
         matchInStatus(_matchId, MatchStatus.VOTING)
     {
@@ -398,7 +385,7 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
 
     function cancelMatch(uint256 _matchId, string memory _reason)
         external
-        onlyRole(BACKEND_ROLE)
+        onlyOwner
         matchExists(_matchId)
         nonReentrant
     {
@@ -434,6 +421,10 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
 
     function getMatchParticipants(uint256 _matchId) external view matchExists(_matchId) returns (address[] memory) {
         return matches[_matchId].participants;
+    }
+
+    function getMatchParticipantsWithNetwork(uint256 _matchId) external view matchExists(_matchId) returns (Participant[] memory) {
+        return matchParticipants[_matchId];
     }
 
     function getUserMatches(address _user) external view returns (uint256[] memory) {
@@ -472,7 +463,7 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
 
     function submitVote(uint256 _matchId, address _voter, address[] calldata _winnerAddresses)
         external
-        onlyRole(BACKEND_ROLE)
+        onlyOwner
         nonReentrant
     {
         VotingSession storage session = votingSessions[_matchId];
@@ -518,7 +509,7 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
 
     function finalizeVoting(uint256 _matchId)
         external
-        onlyRole(VOTING_MANAGER_ROLE)
+        onlyOwner
         votingEnded(_matchId)
         nonReentrant
     {
@@ -589,7 +580,7 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
         uint256 _matchId,
         address[] calldata _winners,
         uint256 _totalPrizePool
-    ) external onlyRole(DISTRIBUTOR_ROLE) nonReentrant {
+    ) external onlyOwner nonReentrant {
         require(_winners.length > 0, "No winners provided");
         require(_totalPrizePool > 0, "Prize pool must be positive");
 
@@ -686,11 +677,7 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
 
     // ==================== TOKEN FUNCTIONS ====================
 
-    function mint(
-        address to,
-        uint256 amount,
-        string memory reason
-    ) public onlyRole(MINTER_ROLE) {
+    function mint(address to, uint256 amount, string memory reason) public onlyOwner {
         require(
             totalSupply() + amount <= TOTAL_SUPPLY,
             "TodoToken: exceeds max supply"
@@ -699,13 +686,9 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
         emit TokensMinted(to, amount, reason);
     }
 
-    function burnTokens(uint256 amount) public onlyRole(BURNER_ROLE) {
+    function burnTokens(uint256 amount) public onlyOwner {
         _burn(msg.sender, amount);
         emit TokensBurned(msg.sender, amount);
-    }
-
-    function isMinter(address account) public view returns (bool) {
-        return hasRole(MINTER_ROLE, account);
     }
 
     // ==================== ADMIN FUNCTIONS ====================
@@ -718,13 +701,5 @@ contract TodosArena is Ownable, ReentrancyGuard, AccessControl, ERC20, ERC20Burn
     function setPlatformFeePercentage(uint256 _newPercentage) external onlyOwner {
         require(_newPercentage <= 100, "Invalid percentage");
         platformFeePercentage = _newPercentage;
-    }
-
-    function grantBackendRole(address _backend) external onlyOwner {
-        _grantRole(BACKEND_ROLE, _backend);
-    }
-
-    function revokeBackendRole(address _backend) external onlyOwner {
-        _revokeRole(BACKEND_ROLE, _backend);
     }
 }

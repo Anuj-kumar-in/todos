@@ -2,7 +2,7 @@ import { useState, useCallback, useRef } from 'react'
 import toast from 'react-hot-toast'
 
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || ''
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent'
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent'
 
 export function useAIDetection() {
     const [isAnalyzing, setIsAnalyzing] = useState(false)
@@ -109,7 +109,7 @@ IMPORTANT: You must respond in this exact JSON format:
 If you cannot determine winners, set winners to an empty array and explain in reasoning.
 Only include participant addresses from the list above in the winners array.`
 
-            const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

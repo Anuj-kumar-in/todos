@@ -23,52 +23,52 @@ module.exports = {
         },
         sepolia: {
             url: process.env.SEPOLIA_RPC_URL || "https://sepolia.drpc.org",
-            accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+            accounts: process.env.VITE_PRIVATE_KEY ? [process.env.VITE_PRIVATE_KEY] : [],
             chainId: 11155111
         },
         arbitrumSepolia: {
             url: process.env.ARBITRUM_SEPOLIA_RPC_URL || "https://arbitrum-sepolia.infura.io/v3/9a06dc3f8b30448f8c0d3e9b01a24939",
-            accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+            accounts: process.env.VITE_PRIVATE_KEY ? [process.env.VITE_PRIVATE_KEY] : [],
             chainId: 421614
         },
         linea: {
             url: process.env.LINEA_RPC_URL || "https://linea-mainnet.infura.io/v3/9a06dc3f8b30448f8c0d3e9b01a24939",
-            accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+            accounts: process.env.VITE_PRIVATE_KEY ? [process.env.VITE_PRIVATE_KEY] : [],
             chainId: 59144
         },
         lineaSepolia: {
             url: process.env.LINEA_SEPOLIA_RPC_URL || "https://linea-sepolia.infura.io/v3/9a06dc3f8b30448f8c0d3e9b01a24939",
-            accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+            accounts: process.env.VITE_PRIVATE_KEY ? [process.env.VITE_PRIVATE_KEY] : [],
             chainId: 59141
         },
         polygon: {
             url: process.env.POLYGON_RPC_URL || "https://polygon-mainnet.infura.io/v3/9a06dc3f8b30448f8c0d3e9b01a24939",
-            accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+            accounts: process.env.VITE_PRIVATE_KEY ? [process.env.VITE_PRIVATE_KEY] : [],
             chainId: 137
         },
         polygonAmoy: {
             url: process.env.POLYGON_AMOY_RPC_URL || "https://polygon-amoy.infura.io/v3/9a06dc3f8b30448f8c0d3e9b01a24939",
-            accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+            accounts: process.env.VITE_PRIVATE_KEY ? [process.env.VITE_PRIVATE_KEY] : [],
             chainId: 80002
         },
         base: {
             url: process.env.BASE_RPC_URL || "https://base-mainnet.infura.io/v3/9a06dc3f8b30448f8c0d3e9b01a24939",
-            accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+            accounts: process.env.VITE_PRIVATE_KEY ? [process.env.VITE_PRIVATE_KEY] : [],
             chainId: 8453
         },
         baseSepolia: {
             url: process.env.BASE_SEPOLIA_RPC_URL || "https://base-sepolia.infura.io/v3/9a06dc3f8b30448f8c0d3e9b01a24939",
-            accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+            accounts: process.env.VITE_PRIVATE_KEY ? [process.env.VITE_PRIVATE_KEY] : [],
             chainId: 84532
         },
         blast: {
             url: process.env.BLAST_RPC_URL || "https://blast-mainnet.infura.io/v3/9a06dc3f8b30448f8c0d3e9b01a24939",
-            accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+            accounts: process.env.VITE_PRIVATE_KEY ? [process.env.VITE_PRIVATE_KEY] : [],
             chainId: 81457
         },
         blastSepolia: {
             url: process.env.BLAST_SEPOLIA_RPC_URL || "https://blast-sepolia.infura.io/v3/9a06dc3f8b30448f8c0d3e9b01a24939",
-            accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+            accounts: process.env.VITE_PRIVATE_KEY ? [process.env.VITE_PRIVATE_KEY] : [],
             chainId: 168587773
         },
         optimism: {
@@ -78,12 +78,12 @@ module.exports = {
         },
         optimismSepolia: {
             url: process.env.OPTIMISM_SEPOLIA_RPC_URL || "https://optimism-sepolia.infura.io/v3/9a06dc3f8b30448f8c0d3e9b01a24939",
-            accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+            accounts: process.env.VITE_PRIVATE_KEY ? [process.env.VITE_PRIVATE_KEY] : [],
             chainId: 11155420
         },
         arbitrum: {
             url: process.env.ARBITRUM_RPC_URL || "https://arbitrum-mainnet.infura.io/v3/9a06dc3f8b30448f8c0d3e9b01a24939",
-            accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+            accounts: process.env.VITE_PRIVATE_KEY ? [process.env.VITE_PRIVATE_KEY] : [],
             chainId: 42161
         },
         palm: {

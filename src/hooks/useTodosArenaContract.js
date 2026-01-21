@@ -1,25 +1,46 @@
-import {
-  useReadContract,
-  useWriteContract,
-  useWaitForTransactionReceipt,
-  useAccount,
-} from 'wagmi'
-import { parseEther, formatEther, toHex } from 'viem'
+import { useReadContract, useAccount } from 'wagmi'
+import { formatEther } from 'viem'
+import { useState, useCallback } from 'react'
+import { ethers } from 'ethers'
 import { CONTRACT_ADDRESSES, TODO_ARENA_ABI } from '../config/contracts'
 import toast from 'react-hot-toast'
 
+/**
+ * useTodosArenaContract Hook
+ * 
+ * - READS: Uses wagmi hooks to read from TodosArena
+ * - WRITES: Uses ethers.js with PRIVATE_KEY from .env to call TodosArena
+ */
 export function useTodosArenaContract() {
   const { address, chain } = useAccount()
   const chainId = chain?.id || 31337
 
-  // TodosArena is on the current chain for local/test, primary for mainnet
-  const todoArenaAddress = CONTRACT_ADDRESSES[chainId]?.todosArena || CONTRACT_ADDRESSES.primary?.todosArena
+  // Get TodosArena address
+  const todoArenaAddress = CONTRACT_ADDRESSES[chainId]?.todosArena ||
+    CONTRACT_ADDRESSES.primary?.todosArena
 
-  if (!todoArenaAddress) {
-    console.error('TodosArena not deployed on primary network')
-  }
+  // Loading states
+  const [isCreatingMatch, setIsCreatingMatch] = useState(false)
+  const [isJoiningMatch, setIsJoiningMatch] = useState(false)
+  const [isStartingMatch, setIsStartingMatch] = useState(false)
+  const [isVoting, setIsVoting] = useState(false)
 
-  // ==================== MATCH READ FUNCTIONS ====================
+  // ==================== ETHERS.JS CONTRACT INSTANCE ====================
+
+  const getContract = useCallback(() => {
+    const privateKey = import.meta.env.VITE_PRIVATE_KEY
+    const rpcUrl = import.meta.env.VITE_RPC_URL
+
+    if (!privateKey) {
+      throw new Error('VITE_PRIVATE_KEY not set in .env')
+    }
+
+    const provider = new ethers.JsonRpcProvider(rpcUrl)
+    const wallet = new ethers.Wallet(privateKey, provider)
+    return new ethers.Contract(todoArenaAddress, TODO_ARENA_ABI, wallet)
+  }, [todoArenaAddress])
+
+  // ==================== READ OPERATIONS (wagmi) ====================
 
   const { data: matchCounter, refetch: refetchCounter } = useReadContract({
     address: todoArenaAddress,
@@ -45,194 +66,6 @@ export function useTodosArenaContract() {
     query: { enabled: !!address },
   })
 
-  // ==================== MATCH WRITE FUNCTIONS ====================
-  // NOTE: These now submit actions to Relayer, not TodosArena directly
-
-  const { writeContractAsync: createMatchWrite, isPending: isCreatingMatch } =
-    useWriteContract()
-
-  const createMatch = async (
-    title,
-    description,
-    gameType,
-    entryStake,
-    maxParticipants,
-    votingDuration
-  ) => {
-    try {
-      // Get Relayer address for current chain
-      const relayerAddress = CONTRACT_ADDRESSES[chainId]?.relayer
-
-      if (!relayerAddress) {
-        throw new Error('Relayer not available on this network')
-      }
-
-      // Encode action data
-      const actionData = new TextEncoder().encode(
-        JSON.stringify({
-          title,
-          description,
-          gameType,
-          entryStake,
-          maxParticipants,
-          votingDuration,
-        })
-      )
-
-      // Submit to Relayer instead of TodosArena
-      const tx = await createMatchWrite({
-        address: relayerAddress,
-        abi: [
-          {
-            name: 'submitAction',
-            type: 'function',
-            inputs: [
-              { name: '_actionType', type: 'uint8' },
-              { name: '_matchId', type: 'uint256' },
-              { name: '_actionData', type: 'bytes' },
-            ],
-            outputs: [{ type: 'uint256' }],
-          },
-        ],
-        functionName: 'submitAction',
-        args: [0, 0, toHex(actionData)], // ActionType.CREATE_MATCH = 0, matchId = 0 for new match
-      })
-
-      toast.success('Match creation submitted! Backend processing...')
-
-      // Refetch after delay to allow backend to process
-      setTimeout(() => {
-        refetchMatches()
-        refetchCounter()
-      }, 3000)
-
-      return tx
-    } catch (error) {
-      console.error('Create match error:', error)
-      toast.error(error.shortMessage || 'Failed to create match')
-      throw error
-    }
-  }
-
-  // ==================== CROSS-CHAIN STAKE FUNCTIONS ====================
-  // DEPRECATED: Removed in new architecture
-
-  const {
-    writeContractAsync: registerStakeWrite,
-    isPending: isRegisteringStake,
-  } = useWriteContract()
-
-  const registerStakeVerification = async (
-    user,
-    matchId,
-    amount,
-    chainId,
-    relayerStakeId
-  ) => {
-    console.warn('registerStakeVerification is deprecated - use Relayer.sendStake()')
-    toast.error('This function is no longer available. Use "Join Match" button.')
-    throw new Error('Deprecated function')
-  }
-
-  const {
-    writeContractAsync: confirmStakeWrite,
-    isPending: isConfirmingStake,
-  } = useWriteContract()
-
-  const confirmStakeAndJoinMatch = async (verificationId) => {
-    console.warn('confirmStakeAndJoinMatch is deprecated - backend handles this')
-    toast.error('This function is no longer available. Backend processes joins automatically.')
-    throw new Error('Deprecated function')
-  }
-
-  // ==================== VOTING FUNCTIONS ====================
-
-  const { writeContractAsync: submitVoteWrite, isPending: isVoting } =
-    useWriteContract()
-
-  const submitVote = async (matchId, winnerAddresses) => {
-    try {
-      // Get Relayer address for current chain
-      const relayerAddress = CONTRACT_ADDRESSES[chainId]?.relayer
-
-      if (!relayerAddress) {
-        throw new Error('Relayer not available on this network')
-      }
-
-      // Encode winner addresses as action data
-      const actionData = new TextEncoder().encode(
-        JSON.stringify({ winners: winnerAddresses })
-      )
-
-      // Submit vote action to Relayer
-      const tx = await submitVoteWrite({
-        address: relayerAddress,
-        abi: [
-          {
-            name: 'submitAction',
-            type: 'function',
-            inputs: [
-              { name: '_actionType', type: 'uint8' },
-              { name: '_matchId', type: 'uint256' },
-              { name: '_actionData', type: 'bytes' },
-            ],
-            outputs: [{ type: 'uint256' }],
-          },
-        ],
-        functionName: 'submitAction',
-        args: [3, matchId, toHex(actionData)], // ActionType.SUBMIT_VOTE = 3
-      })
-
-      toast.success('Vote submitted! Backend processing...')
-      return tx
-    } catch (error) {
-      console.error('Submit vote error:', error)
-      toast.error(error.shortMessage || 'Failed to submit vote')
-      throw error
-    }
-  }
-
-  const { writeContractAsync: finalizeVotingWrite, isPending: isFinalizingVoting } =
-    useWriteContract()
-
-  const finalizeVoting = async (matchId) => {
-    console.warn('finalizeVoting should be called by backend/admin only')
-    toast.error('Only admin can finalize voting')
-    throw new Error('Admin-only function')
-  }
-
-  const useGetVotingSession = (matchId) => {
-    return useReadContract({
-      address: todoArenaAddress,
-      abi: TODO_ARENA_ABI,
-      functionName: 'getVotingSession',
-      args: [matchId],
-      query: { enabled: !!matchId },
-    })
-  }
-
-  const useHasVoted = (matchId) => {
-    return useReadContract({
-      address: todoArenaAddress,
-      abi: TODO_ARENA_ABI,
-      functionName: 'hasVoted',
-      args: [matchId, address],
-      query: { enabled: !!matchId && !!address },
-    })
-  }
-
-  const useFinalWinners = (matchId) => {
-    return useReadContract({
-      address: todoArenaAddress,
-      abi: TODO_ARENA_ABI,
-      functionName: 'getFinalWinners',
-      args: [matchId],
-      query: { enabled: !!matchId },
-    })
-  }
-
-  // ==================== REWARD FUNCTIONS ====================
-
   const { data: rewardBalance, refetch: refetchRewardBalance } = useReadContract({
     address: todoArenaAddress,
     abi: TODO_ARENA_ABI,
@@ -249,190 +82,215 @@ export function useTodosArenaContract() {
     query: { enabled: !!address },
   })
 
-  const { writeContractAsync: claimRewardsWrite, isPending: isClaimingRewards } =
-    useWriteContract()
+  // ==================== WRITE OPERATIONS (ethers.js with PRIVATE_KEY) ====================
 
-  const claimAllRewards = async () => {
-    try {
-      // Users can still claim rewards directly from TodosArena
-      // Or submit claim action to Relayer for cross-chain rewards
-
-      const relayerAddress = CONTRACT_ADDRESSES[chainId]?.relayer
-      const isOnPrimaryNetwork = chainId === CONTRACT_ADDRESSES.primaryChainId
-
-      if (isOnPrimaryNetwork) {
-        // Direct claim from TodosArena
-        const tx = await claimRewardsWrite({
-          address: todoArenaAddress,
-          abi: TODO_ARENA_ABI,
-          functionName: 'claimAllRewards',
-        })
-        toast.success('Rewards claimed!')
-        refetchRewardBalance()
-        refetchTotalEarned()
-        return tx
-      } else {
-        // Submit claim action to Relayer for bridging
-        const actionData = new TextEncoder().encode(
-          JSON.stringify({ claimAll: true })
-        )
-
-        const tx = await claimRewardsWrite({
-          address: relayerAddress,
-          abi: [
-            {
-              name: 'submitAction',
-              type: 'function',
-              inputs: [
-                { name: '_actionType', type: 'uint8' },
-                { name: '_matchId', type: 'uint256' },
-                { name: '_actionData', type: 'bytes' },
-              ],
-              outputs: [{ type: 'uint256' }],
-            },
-          ],
-          functionName: 'submitAction',
-          args: [4, 0, toHex(actionData)], // ActionType.WITHDRAW_REWARDS = 4
-        })
-
-        toast.success('Claim request submitted! Backend will bridge rewards...')
-        return tx
-      }
-    } catch (error) {
-      console.error('Claim rewards error:', error)
-      toast.error(error.shortMessage || 'Failed to claim rewards')
-      throw error
+  const createMatch = useCallback(async (title, description, gameType, entryStake, maxParticipants, votingDuration) => {
+    if (!address) {
+      toast.error('Please connect your wallet')
+      return
     }
-  }
 
-  const claimMatchRewards = async (matchId) => {
+    setIsCreatingMatch(true)
     try {
-      const relayerAddress = CONTRACT_ADDRESSES[chainId]?.relayer
-      const isOnPrimaryNetwork = chainId === CONTRACT_ADDRESSES.primaryChainId
-
-      if (isOnPrimaryNetwork) {
-        // Direct claim from TodosArena
-        const tx = await claimRewardsWrite({
-          address: todoArenaAddress,
-          abi: TODO_ARENA_ABI,
-          functionName: 'claimRewards',
-          args: [matchId],
-        })
-        toast.success('Match rewards claimed!')
-        refetchRewardBalance()
-        return tx
-      } else {
-        // Submit claim action to Relayer
-        const actionData = new TextEncoder().encode(
-          JSON.stringify({ matchId })
-        )
-
-        const tx = await claimRewardsWrite({
-          address: relayerAddress,
-          abi: [
-            {
-              name: 'submitAction',
-              type: 'function',
-              inputs: [
-                { name: '_actionType', type: 'uint8' },
-                { name: '_matchId', type: 'uint256' },
-                { name: '_actionData', type: 'bytes' },
-              ],
-              outputs: [{ type: 'uint256' }],
-            },
-          ],
-          functionName: 'submitAction',
-          args: [4, matchId, toHex(actionData)], // ActionType.WITHDRAW_REWARDS = 4
-        })
-
-        toast.success('Claim request submitted! Backend will bridge rewards...')
-        return tx
-      }
+      const contract = getContract()
+      const tx = await contract.createMatch(
+        address,
+        title,
+        description,
+        gameType,
+        ethers.parseEther(entryStake.toString()),
+        maxParticipants,
+        votingDuration
+      )
+      await tx.wait()
+      toast.success('Match created!')
+      refetchMatches()
+      refetchCounter()
     } catch (error) {
-      console.error('Claim match rewards error:', error)
-      toast.error(error.shortMessage || 'Failed to claim rewards')
+      console.error('Create match error:', error)
+      toast.error(error.reason || error.message || 'Failed to create match')
       throw error
+    } finally {
+      setIsCreatingMatch(false)
     }
-  }
+  }, [address, getContract, refetchMatches, refetchCounter])
 
-  const useGetRewardPool = (matchId) => {
-    return useReadContract({
-      address: todoArenaAddress,
-      abi: TODO_ARENA_ABI,
-      functionName: 'getRewardPool',
-      args: [matchId],
-      query: { enabled: !!matchId },
-    })
-  }
+  const joinMatch = useCallback(async (matchId, networkName = null) => {
+    if (!address) {
+      toast.error('Please connect your wallet')
+      return
+    }
 
-  // ==================== MATCH VIEW FUNCTIONS ====================
+    // Use provided network name or get from current chain
+    const network = networkName || chain?.name || 'Unknown Network'
 
-  const useGetMatch = (matchId) => {
-    return useReadContract({
-      address: todoArenaAddress,
-      abi: TODO_ARENA_ABI,
-      functionName: 'getMatch',
-      args: [matchId],
-      query: { enabled: !!matchId },
-    })
-  }
+    setIsJoiningMatch(true)
+    try {
+      const contract = getContract()
+      const tx = await contract.joinMatch(matchId, address, network)
+      await tx.wait()
+      toast.success('Joined match!')
+      refetchMatches()
+      refetchUserMatches()
+    } catch (error) {
+      console.error('Join match error:', error)
+      toast.error(error.reason || error.message || 'Failed to join match')
+      throw error
+    } finally {
+      setIsJoiningMatch(false)
+    }
+  }, [address, chain, getContract, refetchMatches, refetchUserMatches])
 
-  const useGetMatchParticipants = (matchId) => {
-    return useReadContract({
-      address: todoArenaAddress,
-      abi: TODO_ARENA_ABI,
-      functionName: 'getMatchParticipants',
-      args: [matchId],
-      query: { enabled: !!matchId },
-    })
-  }
+  const startVotingPhase = useCallback(async (matchId) => {
+    setIsStartingMatch(true)
+    try {
+      const contract = getContract()
+      const tx = await contract.startVotingPhase(matchId)
+      await tx.wait()
+      toast.success('Voting started!')
+      refetchMatches()
+    } catch (error) {
+      console.error('Start voting error:', error)
+      toast.error(error.reason || error.message || 'Failed to start voting')
+      throw error
+    } finally {
+      setIsStartingMatch(false)
+    }
+  }, [getContract, refetchMatches])
+
+  const startMatch = useCallback(async (matchId) => {
+    setIsStartingMatch(true)
+    try {
+      const contract = getContract()
+      const tx = await contract.startMatch(matchId)
+      await tx.wait()
+      toast.success('Match started!')
+      refetchMatches()
+    } catch (error) {
+      console.error('Start match error:', error)
+      toast.error(error.reason || error.message || 'Failed to start match')
+      throw error
+    } finally {
+      setIsStartingMatch(false)
+    }
+  }, [getContract, refetchMatches])
+
+  const submitVote = useCallback(async (matchId, winnerAddresses) => {
+    if (!address) {
+      toast.error('Please connect your wallet')
+      return
+    }
+
+    setIsVoting(true)
+    try {
+      const contract = getContract()
+      const tx = await contract.submitVote(matchId, address, winnerAddresses)
+      await tx.wait()
+      toast.success('Vote submitted!')
+    } catch (error) {
+      console.error('Submit vote error:', error)
+      toast.error(error.reason || error.message || 'Failed to submit vote')
+      throw error
+    } finally {
+      setIsVoting(false)
+    }
+  }, [address, getContract])
+
+  // ==================== VIEW FUNCTION HOOKS ====================
+
+  const useGetMatch = (matchId) => useReadContract({
+    address: todoArenaAddress,
+    abi: TODO_ARENA_ABI,
+    functionName: 'getMatch',
+    args: [matchId],
+    query: { enabled: !!matchId && matchId > 0 },
+  })
+
+  const useGetMatchParticipants = (matchId) => useReadContract({
+    address: todoArenaAddress,
+    abi: TODO_ARENA_ABI,
+    functionName: 'getMatchParticipants',
+    args: [matchId],
+    query: { enabled: !!matchId && matchId > 0 },
+  })
+
+  const useGetMatchParticipantsWithNetwork = (matchId) => useReadContract({
+    address: todoArenaAddress,
+    abi: TODO_ARENA_ABI,
+    functionName: 'getMatchParticipantsWithNetwork',
+    args: [matchId],
+    query: { enabled: !!matchId && matchId > 0 },
+  })
+
+  const useGetVotingSession = (matchId) => useReadContract({
+    address: todoArenaAddress,
+    abi: TODO_ARENA_ABI,
+    functionName: 'getVotingSession',
+    args: [matchId],
+    query: { enabled: !!matchId && matchId > 0 },
+  })
+
+  const useHasVoted = (matchId) => useReadContract({
+    address: todoArenaAddress,
+    abi: TODO_ARENA_ABI,
+    functionName: 'hasVoted',
+    args: [matchId, address],
+    query: { enabled: !!matchId && !!address && matchId > 0 },
+  })
+
+  const useFinalWinners = (matchId) => useReadContract({
+    address: todoArenaAddress,
+    abi: TODO_ARENA_ABI,
+    functionName: 'getFinalWinners',
+    args: [matchId],
+    query: { enabled: !!matchId && matchId > 0 },
+  })
+
+  const useGetRewardPool = (matchId) => useReadContract({
+    address: todoArenaAddress,
+    abi: TODO_ARENA_ABI,
+    functionName: 'getRewardPool',
+    args: [matchId],
+    query: { enabled: !!matchId && matchId > 0 },
+  })
 
   return {
-    // Match data
-    matchCounter,
-    allMatches,
-    userMatches,
+    // Data
+    matchCounter: matchCounter ? Number(matchCounter) : 0,
+    allMatches: allMatches || [],
+    userMatches: userMatches || [],
     isLoadingMatches,
+    rewardBalance: rewardBalance ? formatEther(rewardBalance) : '0',
+    totalEarned: totalEarned ? formatEther(totalEarned) : '0',
 
-    // Match functions (now route through Relayer)
+    // Write functions
     createMatch,
     isCreatingMatch,
-
-    // Cross-chain stake functions (DEPRECATED)
-    registerStakeVerification,
-    isRegisteringStake,
-    confirmStakeAndJoinMatch,
-    isConfirmingStake,
-
-    // Voting functions (route through Relayer)
+    joinMatch,
+    isJoiningMatch,
+    startMatch,
+    startVotingPhase,
+    isStartingMatch,
+    isStartingVoting: isStartingMatch,
     submitVote,
     isVoting,
-    finalizeVoting, // Admin only
-    isFinalizingVoting,
+
+    // View hooks
+    useGetMatch,
+    useGetMatchParticipants,
+    useGetMatchParticipantsWithNetwork,
     useGetVotingSession,
     useHasVoted,
     useFinalWinners,
-
-    // Reward functions
-    rewardBalance: rewardBalance ? formatEther(rewardBalance) : '0',
-    totalEarned: totalEarned ? formatEther(totalEarned) : '0',
-    claimAllRewards,
-    claimMatchRewards,
-    isClaimingRewards,
     useGetRewardPool,
 
-    // View functions
-    useGetMatch,
-    useGetMatchParticipants,
-
-    // Refetch functions
+    // Refetch
     refetchMatches,
     refetchUserMatches,
     refetchCounter,
     refetchRewardBalance,
     refetchTotalEarned,
 
-    // Contract address
     todoArenaAddress,
   }
 }
