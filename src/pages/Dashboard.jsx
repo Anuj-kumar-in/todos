@@ -41,6 +41,18 @@ export default function Dashboard() {
         }
     }, [isConnected])
 
+    // Periodic polling to keep data fresh (every 10 seconds)
+    useEffect(() => {
+        if (!isConnected) return
+
+        const interval = setInterval(() => {
+            refetchMatches()
+            refetchUserMatches()
+        }, 10000) // 10 seconds
+
+        return () => clearInterval(interval)
+    }, [isConnected, refetchMatches, refetchUserMatches])
+
     if (!isConnected) {
         return (
             <div className="min-h-[80vh] flex items-center justify-center">

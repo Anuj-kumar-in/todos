@@ -232,6 +232,18 @@ contract TodosArena is Ownable, ReentrancyGuard, ERC20, ERC20Burnable {
         _;
     }
 
+    // New modifier: allows finalization when time expired OR all participants voted
+    modifier votingCanFinalize(uint256 _matchId) {
+        VotingSession storage session = votingSessions[_matchId];
+        bool timeExpired = block.timestamp >= session.votingEndTime;
+        bool allVoted = session.votesReceived >= session.participants.length && session.participants.length > 0;
+        require(
+            timeExpired || allVoted,
+            "Voting period is still active and not all participants have voted"
+        );
+        _;
+    }
+
     constructor() ERC20("TODO Arena Token", "TODO") Ownable(msg.sender) {
         platformFeeRecipient = msg.sender;
     }
@@ -507,10 +519,15 @@ contract TodosArena is Ownable, ReentrancyGuard, ERC20, ERC20Burnable {
         emit VoteCasted(_matchId, _voter, _winnerAddresses, block.timestamp);
     }
 
+    /**
+     * @dev Finalize voting - can be called when:
+     *      1. Voting period has ended (time expired), OR
+     *      2. All participants have already voted (early finalization)
+     */
     function finalizeVoting(uint256 _matchId)
         external
         onlyOwner
-        votingEnded(_matchId)
+        votingCanFinalize(_matchId)
         nonReentrant
     {
         VotingSession storage session = votingSessions[_matchId];

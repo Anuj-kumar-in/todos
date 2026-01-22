@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useAccount, useReadContract } from 'wagmi'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
-import { ArrowLeft, Users, Clock, Coins, Trophy, User, CheckCircle, Vote, Copy, Share2, AlertCircle, Camera, Upload, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Users, Clock, Coins, Trophy, User, CheckCircle, Vote, Copy, Share2, AlertCircle, Camera, Upload, RefreshCw, Award, Timer, Sparkles } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Card, { CardContent, CardHeader, CardTitle } from '../components/ui/Card'
 import Modal from '../components/ui/Modal'
@@ -31,11 +31,14 @@ export default function MatchDetail() {
     const [showCamera, setShowCamera] = useState(false)
     const [showUpload, setShowUpload] = useState(false)
     const [showAIResult, setShowAIResult] = useState(false)
+    const [showAIFallbackModal, setShowAIFallbackModal] = useState(false)
+    const [votingTimeLeft, setVotingTimeLeft] = useState(null)
+    const [finalizationAttempted, setFinalizationAttempted] = useState(false)
 
     const [selectedWinners, setSelectedWinners] = useState([])
 
     // Contract Hooks
-    const { joinMatch, isJoiningMatch, startMatch, isStartingMatch, startVotingPhase, isStartingVoting, finalizeVoting, isFinalizingVoting, submitVote, isVoting, useGetMatch, useGetMatchParticipantsWithNetwork, refetchMatches } = useTodosArenaContract()
+    const { joinMatch, isJoiningMatch, startMatch, isStartingMatch, startVotingPhase, isStartingVoting, finalizeVoting, finalizeWithAI, isFinalizingVoting, submitVote, isVoting, useGetMatch, useGetMatchParticipantsWithNetwork, useGetVotingSession, useHasVoted, useFinalWinners, refetchMatches } = useTodosArenaContract()
 
     // AI Hooks
     const {
@@ -55,10 +58,134 @@ export default function MatchDetail() {
     // Fetch participants with network info
     const { data: participantsWithNetwork, isLoading: isLoadingParticipants, refetch: refetchParticipants } = useGetMatchParticipantsWithNetwork(matchId)
 
+    // Fetch voting session data
+    const { data: votingSessionData, refetch: refetchVotingSession } = useGetVotingSession(matchId)
+
+    // Check if current user has voted
+    const { data: userHasVoted, refetch: refetchHasVoted } = useHasVoted(matchId)
+
+    // Get final winners if voting is finalized
+    const { data: finalWinners, refetch: refetchFinalWinners } = useFinalWinners(matchId)
+
     useEffect(() => {
         refetchMatch()
         refetchParticipants()
-    }, [id])
+        refetchVotingSession()
+        refetchHasVoted()
+        refetchFinalWinners()
+    }, [id, refetchMatch, refetchParticipants, refetchVotingSession, refetchHasVoted, refetchFinalWinners])
+
+    // Periodic polling during voting phase to catch updates from other participants
+    useEffect(() => {
+        // Only poll during voting phase (status 2)
+        const interval = setInterval(() => {
+            refetchVotingSession()
+            refetchHasVoted()
+            refetchFinalWinners()
+            refetchMatch()
+        }, 5000) // 5 seconds
+
+        return () => clearInterval(interval)
+    }, [refetchVotingSession, refetchHasVoted, refetchFinalWinners, refetchMatch])
+
+    // Voting session data parsing
+    const votingSession = votingSessionData ? {
+        matchId: Number(votingSessionData[0] || 0),
+        totalVoters: Number(votingSessionData[1] || 0),
+        votesReceived: Number(votingSessionData[2] || 0),
+        votingEndTime: Number(votingSessionData[3] || 0),
+        finalized: votingSessionData[4] || false
+    } : null
+
+    // Voting time countdown
+    useEffect(() => {
+        if (!votingSession || votingSession.votingEndTime === 0) {
+            setVotingTimeLeft(null)
+            return
+        }
+
+        const updateTimeLeft = () => {
+            const now = Math.floor(Date.now() / 1000)
+            const timeLeft = votingSession.votingEndTime - now
+            setVotingTimeLeft(timeLeft > 0 ? timeLeft : 0)
+        }
+
+        updateTimeLeft()
+        const interval = setInterval(updateTimeLeft, 1000)
+
+        return () => clearInterval(interval)
+    }, [votingSession?.votingEndTime])
+
+    // Format time left for display
+    const formatTimeLeft = (seconds) => {
+        if (seconds === null) return '--:--'
+        if (seconds <= 0) return 'Expired'
+        const mins = Math.floor(seconds / 60)
+        const secs = seconds % 60
+        return `${mins}:${secs.toString().padStart(2, '0')}`
+    }
+
+    // Derived values that can be computed safely even when data is loading
+    const match = matchData || {}
+    const participantsList = participantsWithNetwork ?
+        participantsWithNetwork.map(p => typeof p === 'string' ? p : p.addr) : []
+    const isCreator = address && match.creator ? address.toLowerCase() === match.creator.toLowerCase() : false
+    const status = match.status !== undefined ? Number(match.status) : -1
+    const gameType = match.gameType !== undefined ? Number(match.gameType) : 0
+
+    // Auto-finalize voting when all participants have voted OR time expires
+    // Note: This only triggers once per voting session to prevent infinite loops
+    const checkAndFinalizeVoting = useCallback(async () => {
+        // Prevent multiple attempts
+        if (!votingSession || votingSession.finalized || !isCreator || isFinalizingVoting || finalizationAttempted) return
+
+        const allVoted = votingSession.votesReceived >= votingSession.totalVoters
+        const timeExpired = votingTimeLeft === 0
+
+        if (allVoted || timeExpired) {
+            setFinalizationAttempted(true) // Mark as attempted to prevent loops
+            try {
+                await finalizeVoting(matchId)
+                await refetchVotingSession()
+                await refetchFinalWinners()
+                await refetchMatch()
+
+                // Check if consensus was reached (winners array not empty)
+                const updatedWinners = await refetchFinalWinners()
+                if (!updatedWinners?.data || updatedWinners.data.length === 0) {
+                    // No consensus - trigger AI fallback
+                    setShowAIFallbackModal(true)
+                    toast('No consensus reached. AI verification required.', { icon: '⚠️' })
+                }
+            } catch (error) {
+                console.error('Auto-finalize error:', error)
+                // Don't show repeated error toasts - just log it
+            }
+        }
+    }, [votingSession, votingTimeLeft, isCreator, matchId, finalizeVoting, refetchVotingSession, refetchFinalWinners, refetchMatch, isFinalizingVoting, finalizationAttempted])
+
+    // Trigger auto-finalization check when all votes in or time expires
+    // Only runs once due to the finalizationAttempted guard
+    useEffect(() => {
+        if (status === 2 && votingSession && !votingSession.finalized && !finalizationAttempted && !isFinalizingVoting) {
+            const allVoted = votingSession.votesReceived >= votingSession.totalVoters
+            const timeExpired = votingTimeLeft === 0
+
+            if (allVoted || timeExpired) {
+                checkAndFinalizeVoting()
+            }
+        }
+    }, [status, votingSession, votingTimeLeft, checkAndFinalizeVoting, finalizationAttempted, isFinalizingVoting])
+
+    // Reset finalization attempted flag when voting session changes (new match or voting restarted)
+    useEffect(() => {
+        if (votingSession?.finalized) {
+            // Keep the flag if already finalized
+        } else if (votingSession?.matchId) {
+            // Reset when viewing a new match
+            setFinalizationAttempted(false)
+        }
+    }, [votingSession?.matchId, votingSession?.finalized])
 
     // AI Handlers
     const handleCameraCapture = async () => {
@@ -103,9 +230,9 @@ export default function MatchDetail() {
             await submitVote(matchId, aiResult.winners)
             setShowAIResult(false)
             resetAIResult()
-            // Wait for backend processing
+            // Wait for backend processing then refresh all voting-related data
             setTimeout(async () => {
-                await refetchMatch()
+                await Promise.all([refetchMatch(), refetchHasVoted(), refetchVotingSession()])
                 toast.success('Vote submitted based on AI result!')
             }, 3000)
         } catch (error) {
@@ -147,17 +274,13 @@ export default function MatchDetail() {
         )
     }
 
-    const match = matchData
-    // Transform participants data - handle both old (address[]) and new (Participant[]) format
-    const participantsList = participantsWithNetwork ?
-        participantsWithNetwork.map(p => typeof p === 'string' ? p : p.addr) : []
+    // After early returns - matchData is guaranteed to exist
+    // Use the match object already defined above (line 113)
     const participantsData = participantsWithNetwork || []
     const formatAddress = (addr) => `${addr.slice(0, 6)}...${addr.slice(-4)}`
     const copyAddress = (addr) => { navigator.clipboard.writeText(addr); toast.success('Address copied!') }
 
-    const isCreator = address?.toLowerCase() === match.creator?.toLowerCase()
     const isParticipant = participantsList.some(p => p.toLowerCase() === address?.toLowerCase())
-    const status = Number(match.status)
 
     // Debug logging for creator status
     console.log('MatchDetail Debug:', {
@@ -168,7 +291,6 @@ export default function MatchDetail() {
         addressMatch: address?.toLowerCase() === match.creator?.toLowerCase()
     })
     const spotsLeft = Number(match.maxParticipants) - Number(match.participantCount)
-    const gameType = Number(match.gameType)
 
     // Logic for Proof Submission
     const isOnlineGame = gameType === 2 // Online
@@ -177,7 +299,37 @@ export default function MatchDetail() {
     const canJoin = status === 0 && !isParticipant && spotsLeft > 0
     const canStart = isCreator && status === 0 && Number(match.participantCount) >= 2
     const canStartVoting = isCreator && status === 1
-    const canVote = status === 2 && isParticipant
+    const canVote = status === 2 && isParticipant && !userHasVoted
+
+    // Handle AI fallback for draw/fail scenarios
+    const handleAIFallbackAnalysis = () => {
+        setShowAIFallbackModal(false)
+        // Show camera or upload based on game type
+        if (gameType === 2) {
+            setShowUpload(true)
+        } else {
+            setShowCamera(true)
+        }
+    }
+
+    // Handle AI fallback result acceptance
+    const handleAIFallbackAccept = async () => {
+        if (!aiResult?.winners?.length) {
+            toast.error('No winners detected by AI')
+            return
+        }
+
+        try {
+            await finalizeWithAI(matchId, aiResult.winners)
+            setShowAIResult(false)
+            resetAIResult()
+            await Promise.all([refetchMatch(), refetchVotingSession(), refetchFinalWinners()])
+            toast.success('Match finalized with AI verification!')
+        } catch (error) {
+            console.error('AI fallback error:', error)
+            toast.error('Failed to finalize with AI')
+        }
+    }
 
     const handleJoin = async () => {
         if (!isConnected) { toast.error('Connect wallet first'); return }
@@ -232,9 +384,9 @@ export default function MatchDetail() {
             await submitVote(matchId, selectedWinners)
             setShowVoteModal(false)
             setSelectedWinners([])
-            // Wait for backend processing
+            // Wait for backend processing then refresh all voting-related data
             setTimeout(async () => {
-                await refetchMatch()
+                await Promise.all([refetchMatch(), refetchHasVoted(), refetchVotingSession()])
                 toast.success('Vote submitted successfully!')
             }, 3000)
         } catch (error) {
@@ -384,52 +536,198 @@ export default function MatchDetail() {
                                         <Button className="w-full" onClick={handleStartVoting} loading={isStartingVoting}>End Match & Start Voting</Button>
                                     )}
 
-                                    {/* Action buttons during voting phase */}
-                                    {canVote && (
-                                        <div className="space-y-3">
-                                            {/* AI Proof Submission - Camera for physical games (Indoor, Outdoor, Offline, Hybrid) */}
-                                            {gameType !== 2 && (
-                                                <Button
-                                                    className="w-full"
-                                                    icon={Camera}
-                                                    onClick={() => setShowCamera(true)}
-                                                    variant="secondary"
-                                                    disabled={isAnalyzing}
-                                                >
-                                                    AI Live Verify
-                                                </Button>
-                                            )}
-                                            {/* AI Proof Submission - Upload for Online games */}
-                                            {gameType === 2 && (
-                                                <Button
-                                                    className="w-full"
-                                                    icon={Upload}
-                                                    onClick={() => setShowUpload(true)}
-                                                    variant="secondary"
-                                                    disabled={isAnalyzing}
-                                                >
-                                                    AI Upload Verify
-                                                </Button>
-                                            )}
+                                    {/* Voting Phase UI - Only show when voting in progress and NOT all voted yet */}
+                                    {status === 2 && isParticipant && !votingSession?.finalized &&
+                                        !(votingSession && votingSession.votesReceived >= votingSession.totalVoters) && (
+                                            <div className="space-y-4">
+                                                {/* Voting Progress Section */}
+                                                {votingSession && (
+                                                    <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="text-sm text-gray-400 flex items-center gap-2">
+                                                                <Timer className="w-4 h-4" />
+                                                                Time Left
+                                                            </span>
+                                                            <span className={`font-mono font-bold ${votingTimeLeft && votingTimeLeft > 60 ? 'text-green-400' : votingTimeLeft && votingTimeLeft > 0 ? 'text-yellow-400' : 'text-red-400'}`}>
+                                                                {formatTimeLeft(votingTimeLeft)}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="text-sm text-gray-400 flex items-center gap-2">
+                                                                <Vote className="w-4 h-4" />
+                                                                Votes
+                                                            </span>
+                                                            <span className="text-white font-medium">
+                                                                {votingSession.votesReceived} / {votingSession.totalVoters}
+                                                            </span>
+                                                        </div>
+                                                        {/* Progress Bar */}
+                                                        <div className="w-full bg-gray-700 rounded-full h-2">
+                                                            <div
+                                                                className="bg-gradient-to-r from-primary-500 to-purple-500 h-2 rounded-full transition-all duration-500"
+                                                                style={{ width: `${votingSession.totalVoters > 0 ? (votingSession.votesReceived / votingSession.totalVoters) * 100 : 0}%` }}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                )}
 
-                                            {/* Manual Voting */}
-                                            <Button
-                                                className="w-full"
-                                                icon={Vote}
-                                                onClick={() => setShowVoteModal(true)}
+                                                {/* User Has Voted - Show Voted State */}
+                                                {userHasVoted ? (
+                                                    <motion.div
+                                                        initial={{ opacity: 0, scale: 0.9 }}
+                                                        animate={{ opacity: 1, scale: 1 }}
+                                                        className="p-4 rounded-xl bg-gradient-to-br from-green-500/20 to-emerald-500/10 border border-green-500/30"
+                                                    >
+                                                        <div className="flex items-center justify-center gap-3">
+                                                            <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center">
+                                                                <CheckCircle className="w-6 h-6 text-green-400" />
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-green-400 font-bold text-lg">Voted!</p>
+                                                                <p className="text-gray-400 text-sm">Waiting for others...</p>
+                                                            </div>
+                                                        </div>
+                                                    </motion.div>
+                                                ) : (
+                                                    /* User Has Not Voted - Show Voting Options */
+                                                    <div className="space-y-3">
+                                                        {/* AI Proof Submission - Camera for physical games */}
+                                                        {gameType !== 2 && (
+                                                            <Button
+                                                                className="w-full"
+                                                                icon={Camera}
+                                                                onClick={() => setShowCamera(true)}
+                                                                variant="secondary"
+                                                                disabled={isAnalyzing}
+                                                            >
+                                                                AI Live Verify
+                                                            </Button>
+                                                        )}
+                                                        {/* AI Proof Submission - Upload for Online games */}
+                                                        {gameType === 2 && (
+                                                            <Button
+                                                                className="w-full"
+                                                                icon={Upload}
+                                                                onClick={() => setShowUpload(true)}
+                                                                variant="secondary"
+                                                                disabled={isAnalyzing}
+                                                            >
+                                                                AI Upload Verify
+                                                            </Button>
+                                                        )}
+
+                                                        {/* Manual Voting */}
+                                                        <Button
+                                                            className="w-full"
+                                                            icon={Vote}
+                                                            onClick={() => setShowVoteModal(true)}
+                                                        >
+                                                            Manual Vote
+                                                        </Button>
+
+                                                        <p className="text-center text-xs text-gray-500 mt-2">
+                                                            Use AI Verification for faster results
+                                                        </p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                    {/* All Participants Voted - Ready to Finalize */}
+                                    {status === 2 && votingSession && !votingSession.finalized &&
+                                        votingSession.votesReceived >= votingSession.totalVoters && (
+                                            <motion.div
+                                                initial={{ opacity: 0, y: 10 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                className="p-4 rounded-xl bg-gradient-to-br from-green-500/20 to-emerald-500/10 border border-green-500/30"
                                             >
-                                                Manual Vote
-                                            </Button>
+                                                <div className="flex items-center gap-2 mb-3">
+                                                    <CheckCircle className="w-5 h-5 text-green-400" />
+                                                    <span className="text-white font-bold">All Votes In!</span>
+                                                </div>
+                                                <p className="text-sm text-gray-400 mb-3">
+                                                    Everyone has voted. Ready to declare results now!
+                                                </p>
+                                                {isCreator && (
+                                                    <Button
+                                                        className="w-full"
+                                                        icon={Trophy}
+                                                        onClick={async () => {
+                                                            try {
+                                                                await finalizeVoting(matchId)
+                                                                await Promise.all([refetchVotingSession(), refetchFinalWinners(), refetchMatch()])
+                                                                toast.success('Results declared!')
+                                                            } catch (error) {
+                                                                console.error('Finalize error:', error)
+                                                                toast.error(error.reason || 'Failed to declare results')
+                                                            }
+                                                        }}
+                                                        loading={isFinalizingVoting}
+                                                        variant="gradient"
+                                                    >
+                                                        Declare Results Now
+                                                    </Button>
+                                                )}
+                                                {!isCreator && (
+                                                    <p className="text-xs text-gray-500 text-center">
+                                                        Waiting for match creator to declare results...
+                                                    </p>
+                                                )}
+                                            </motion.div>
+                                        )}
 
-                                            <p className="text-center text-xs text-gray-500 mt-2">
-                                                Use AI Verification for faster results
-                                            </p>
-                                        </div>
+                                    {/* Show Results When Voting is Finalized */}
+                                    {status === 2 && votingSession?.finalized && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: 10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            className="p-4 rounded-xl bg-gradient-to-br from-purple-500/20 to-primary-500/10 border border-purple-500/30"
+                                        >
+                                            <div className="flex items-center gap-2 mb-3">
+                                                <Trophy className="w-5 h-5 text-yellow-400" />
+                                                <span className="text-white font-bold">Results Declared</span>
+                                            </div>
+                                            {finalWinners && finalWinners.length > 0 ? (
+                                                <div className="space-y-2">
+                                                    <p className="text-sm text-gray-400">Winners:</p>
+                                                    {finalWinners.map((winner, idx) => (
+                                                        <div key={winner} className="flex items-center gap-2 p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+                                                            <Award className="w-4 h-4 text-yellow-400" />
+                                                            <span className="text-yellow-300 font-medium">{formatAddress(winner)}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-3">
+                                                    <p className="text-sm text-red-400">No consensus reached (Draw/Tie)</p>
+                                                    {isCreator && (
+                                                        <Button
+                                                            className="w-full"
+                                                            icon={Sparkles}
+                                                            onClick={() => setShowAIFallbackModal(true)}
+                                                            variant="gradient"
+                                                        >
+                                                            Use AI to Determine Winner
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </motion.div>
                                     )}
 
                                     {isParticipant && status === 0 && <p className="text-center text-sm text-gray-400 mt-2">Waiting for more players...</p>}
                                     {isParticipant && status === 1 && !isCreator && <p className="text-center text-sm text-gray-400 mt-2">Match in progress... Waiting for Creator to end match.</p>}
-                                    {status === 3 && <p className="text-center text-sm text-green-400 mt-2">Match completed!</p>}
+                                    {status === 3 && (
+                                        <motion.div
+                                            initial={{ opacity: 0, scale: 0.9 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            className="p-4 rounded-xl bg-gradient-to-br from-green-500/20 to-emerald-500/10 border border-green-500/30 text-center"
+                                        >
+                                            <Trophy className="w-8 h-8 text-yellow-400 mx-auto mb-2" />
+                                            <p className="text-green-400 font-bold">Match Completed!</p>
+                                            <p className="text-gray-400 text-sm mt-1">Rewards have been distributed</p>
+                                        </motion.div>
+                                    )}
                                 </>
                             )}
                         </CardContent>
@@ -499,6 +797,65 @@ export default function MatchDetail() {
                     formatAddress={formatAddress}
                 />
             )}
+
+            {/* AI Fallback Modal for Draw/Fail Scenarios */}
+            <Modal
+                isOpen={showAIFallbackModal}
+                onClose={() => setShowAIFallbackModal(false)}
+                title="AI Verification Required"
+                size="md"
+            >
+                <div className="space-y-4">
+                    <div className="p-4 rounded-xl bg-yellow-500/10 border border-yellow-500/30">
+                        <div className="flex items-start gap-3">
+                            <AlertCircle className="w-6 h-6 text-yellow-400 flex-shrink-0 mt-0.5" />
+                            <div>
+                                <p className="text-yellow-300 font-medium">Voting Result: No Consensus</p>
+                                <p className="text-gray-400 text-sm mt-1">
+                                    The participants' votes did not reach a consensus on the winner.
+                                    You can use AI verification to analyze proof and determine the winner.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="space-y-3">
+                        <p className="text-gray-300 text-sm">Choose how to provide proof for AI analysis:</p>
+
+                        {gameType !== 2 ? (
+                            <Button
+                                className="w-full"
+                                icon={Camera}
+                                onClick={handleAIFallbackAnalysis}
+                                variant="gradient"
+                            >
+                                Use Camera to Capture Proof
+                            </Button>
+                        ) : (
+                            <Button
+                                className="w-full"
+                                icon={Upload}
+                                onClick={handleAIFallbackAnalysis}
+                                variant="gradient"
+                            >
+                                Upload Screenshot Proof
+                            </Button>
+                        )}
+
+                        <Button
+                            className="w-full"
+                            variant="secondary"
+                            onClick={() => setShowAIFallbackModal(false)}
+                        >
+                            Cancel
+                        </Button>
+                    </div>
+
+                    <p className="text-xs text-gray-500 text-center">
+                        AI will analyze the provided proof and determine the winner(s) automatically
+                    </p>
+                </div>
+            </Modal>
         </div>
     )
 }

@@ -24,6 +24,7 @@ export function useTodosArenaContract() {
   const [isJoiningMatch, setIsJoiningMatch] = useState(false)
   const [isStartingMatch, setIsStartingMatch] = useState(false)
   const [isVoting, setIsVoting] = useState(false)
+  const [isFinalizingVoting, setIsFinalizingVoting] = useState(false)
 
   // ==================== ETHERS.JS CONTRACT INSTANCE ====================
 
@@ -187,6 +188,7 @@ export function useTodosArenaContract() {
       const tx = await contract.submitVote(matchId, address, winnerAddresses)
       await tx.wait()
       toast.success('Vote submitted!')
+      refetchMatches()
     } catch (error) {
       console.error('Submit vote error:', error)
       toast.error(error.reason || error.message || 'Failed to submit vote')
@@ -194,7 +196,45 @@ export function useTodosArenaContract() {
     } finally {
       setIsVoting(false)
     }
-  }, [address, getContract])
+  }, [address, getContract, refetchMatches])
+
+  const finalizeVoting = useCallback(async (matchId) => {
+    setIsFinalizingVoting(true)
+    try {
+      const contract = getContract()
+      const tx = await contract.finalizeVoting(matchId)
+      await tx.wait()
+      toast.success('Voting finalized!')
+      refetchMatches()
+    } catch (error) {
+      console.error('Finalize voting error:', error)
+      toast.error(error.reason || error.message || 'Failed to finalize voting')
+      throw error
+    } finally {
+      setIsFinalizingVoting(false)
+    }
+  }, [getContract, refetchMatches])
+
+  const finalizeWithAI = useCallback(async (matchId, aiDeterminedWinners) => {
+    setIsFinalizingVoting(true)
+    try {
+      const contract = getContract()
+      // First distribute rewards based on AI decision
+      const tx = await contract.distributeRewards(matchId, aiDeterminedWinners, ethers.parseEther('0.01'))
+      await tx.wait()
+      // Then complete the match
+      const tx2 = await contract.completeMatch(matchId)
+      await tx2.wait()
+      toast.success('Match finalized with AI verification!')
+      refetchMatches()
+    } catch (error) {
+      console.error('AI finalize error:', error)
+      toast.error(error.reason || error.message || 'Failed to finalize with AI')
+      throw error
+    } finally {
+      setIsFinalizingVoting(false)
+    }
+  }, [getContract, refetchMatches])
 
   // ==================== VIEW FUNCTION HOOKS ====================
 
@@ -274,6 +314,9 @@ export function useTodosArenaContract() {
     isStartingVoting: isStartingMatch,
     submitVote,
     isVoting,
+    finalizeVoting,
+    finalizeWithAI,
+    isFinalizingVoting,
 
     // View hooks
     useGetMatch,

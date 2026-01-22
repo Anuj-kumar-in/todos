@@ -97,6 +97,17 @@ export default function Matches() {
         return () => window.removeEventListener('focus', handleFocus)
     }, [refetchMatches])
 
+    // Add periodic polling to catch status updates (every 10 seconds)
+    useEffect(() => {
+        const interval = setInterval(() => {
+            refetchMatches().then(() => {
+                setLastUpdate(new Date())
+            })
+        }, 10000) // 10 seconds
+
+        return () => clearInterval(interval)
+    }, [refetchMatches])
+
     const handleFilterChange = (filter) => {
         if (filter === 'outdoor' && permissionStatus !== 'granted') {
             requestLocation()
@@ -188,9 +199,9 @@ export default function Matches() {
                     )}
                 </div>
                 <div className="flex gap-2">
-                    {['all', '0', '1', '2'].map((status) => (
+                    {['all', '0', '1', '2', '3'].map((status) => (
                         <button key={status} onClick={() => setStatusFilter(status)} className={`px-3 py-1.5 rounded-lg text-sm font-medium ${statusFilter === status ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-gray-300'}`}>
-                            {status === 'all' ? 'All' : status === '0' ? 'Open' : status === '1' ? 'Active' : 'Voting'}
+                            {status === 'all' ? 'All' : status === '0' ? 'Open' : status === '1' ? 'Active' : status === '2' ? 'Voting' : 'Completed'}
                         </button>
                     ))}
                 </div>

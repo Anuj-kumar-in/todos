@@ -14,15 +14,30 @@ import toast from 'react-hot-toast'
 
 export default function Profile() {
     const { address, isConnected } = useAccount()
-    const { allMatches, userMatches, isLoadingMatches, refetchUserMatches, totalEarned, rewardBalance, claimAllRewards, isClaimingRewards, refetchRewardBalance, refetchTotalEarned } = useTodosArenaContract()
+    const { allMatches, userMatches, isLoadingMatches, refetchMatches, refetchUserMatches, totalEarned, rewardBalance, claimAllRewards, isClaimingRewards, refetchRewardBalance, refetchTotalEarned } = useTodosArenaContract()
 
     useEffect(() => {
         if (isConnected) {
+            refetchMatches()
             refetchUserMatches()
             refetchRewardBalance()
             refetchTotalEarned()
         }
     }, [isConnected])
+
+    // Periodic polling to keep data fresh (every 10 seconds)
+    useEffect(() => {
+        if (!isConnected) return
+
+        const interval = setInterval(() => {
+            refetchMatches()
+            refetchUserMatches()
+            refetchRewardBalance()
+            refetchTotalEarned()
+        }, 10000) // 10 seconds
+
+        return () => clearInterval(interval)
+    }, [isConnected, refetchMatches, refetchUserMatches, refetchRewardBalance, refetchTotalEarned])
 
     const copyAddress = () => {
         if (address) {
@@ -93,11 +108,11 @@ export default function Profile() {
                             </div>
                         </div>
                         <div className="flex gap-6">
-                        <div className="text-center">
-                            <div className="text-2xl font-bold gradient-text">{parseFloat(totalEarned).toFixed(0)}</div>
-                            <div className="text-sm text-gray-500">TODO Balance</div>
+                            <div className="text-center">
+                                <div className="text-2xl font-bold gradient-text">{parseFloat(totalEarned).toFixed(0)}</div>
+                                <div className="text-sm text-gray-500">TODO Balance</div>
+                            </div>
                         </div>
-                    </div>
                     </div>
                 </Card>
             </motion.div>
