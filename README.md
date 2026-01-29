@@ -12,6 +12,53 @@ A decentralized sports/games management platform with AI-powered verification, c
 - ⛓️ **Blockchain Secured**: All data is stored on the Ethereum blockchain for transparency and security.
 - 🌐 **Multi-Network Support**: Supports mostly all EVM networks (adding in progress)
 
+## Architecture
+
+![TODOs Arena Architecture](./public/architecture.png)
+
+### System Overview
+
+TODOs Arena uses a **multi-layer architecture** designed for cross-chain compatibility, scalability, and decentralized verification:
+
+#### 1. User Layer
+Users can connect from **any supported EVM blockchain network** (Ethereum, Arbitrum, Polygon, Base, Optimism, etc.) using their Web3 wallets. This enables true multi-chain participation where players on different networks can compete against each other.
+
+#### 2. Relayer Layer
+Each supported blockchain has a deployed **Relayer Contract** that handles:
+- **User Registration**: New users register and receive **100 TODO tokens** as a welcome bonus
+- **Token Staking**: Users stake TODO tokens from their balance to join matches
+- **Balance Management**: Tracks user TODO token balances, deposits, and withdrawals
+- **Event Emission**: Emits events that the backend listener captures for cross-chain synchronization
+
+#### 3. Backend Listener
+A centralized backend service that:
+- Listens to events from all Relayer contracts across different networks
+- Processes stake confirmations and user registrations
+- Relays verified actions to the primary TodosArena contract
+- Ensures cross-chain state consistency
+
+#### 4. Primary Chain (Sepolia)
+The **TodosArena Contract** on Ethereum Sepolia serves as the source of truth and contains:
+- **Match Management**: Create, join, start, and complete matches
+- **Voting System**: Decentralized consensus-based winner determination
+- **AI Verification**: Integration with Gemini AI for automated result verification
+- **Reward Distribution**: Automatic TODO token distribution to winners
+- **TODO Token (ERC20)**: Native platform token with 1 billion supply
+
+#### 5. AI Layer
+**Gemini AI** provides intelligent winner detection through:
+- **Camera Capture**: Real-time analysis of physical game results
+- **Screenshot Analysis**: Verification of online game results
+- **Fallback Mechanism**: AI steps in when voting doesn't reach consensus
+
+### Data Flow
+
+1. **Join Match**: User → Relayer (stake tokens) → Backend → TodosArena (register participant)
+2. **Submit Vote**: User → TodosArena (via backend) → Voting tally
+3. **AI Verification**: User uploads proof → Gemini AI → Winner determination
+4. **Reward Distribution**: TodosArena → Winner accounts credited with TODO tokens
+
+
 ## Quick Start
 
 ### Prerequisites
@@ -115,6 +162,3 @@ Copy `.env.example` to `.env` and fill in the following variables:
 5. **Claim Rewards**: Winners can claim Crypto.
 
 
-## License
-
-This project is licensed under the MIT License.

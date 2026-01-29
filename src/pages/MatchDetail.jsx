@@ -13,6 +13,7 @@ import AIResultModal from '../components/AIResultModal'
 import { MatchStatusBadge } from '../components/ui/Badge'
 import { GAME_TYPE_ICONS, GAME_TYPE_NAMES, TODO_ARENA_ABI } from '../config/contracts'
 import { useTodosArenaContract } from '../hooks/useTodosArenaContract'
+import { useRelayerContract } from '../hooks/useRelayerContract'
 import useAIDetection from '../hooks/useAIDetection'
 import { Loader } from '../components/ui/Loader'
 import toast from 'react-hot-toast'
@@ -33,6 +34,7 @@ export default function MatchDetail() {
     const [selectedWinners, setSelectedWinners] = useState([])
 
     const { joinMatch, isJoiningMatch, startMatch, isStartingMatch, startVotingPhase, isStartingVoting, finalizeVoting, finalizeWithAI, isFinalizingVoting, submitVote, isVoting, useGetMatch, useGetMatchParticipantsWithNetwork, useGetVotingSession, useHasVoted, useFinalWinners, refetchMatches } = useTodosArenaContract()
+    const { stakeForMatch, isStaking, userBalance } = useRelayerContract()
 
     const {
         isAnalyzing,
@@ -294,6 +296,19 @@ export default function MatchDetail() {
     const handleJoin = async () => {
         if (!isConnected) { toast.error('Connect wallet first'); return }
         try {
+            const stakeAmount = match.entryStake || 0n
+
+            // 1. Check balance
+            if (userBalance < stakeAmount) {
+                toast.error(`Insufficient TODO balance. You need ${Number(stakeAmount / 10n ** 18n)} TODO`)
+                return
+            }
+
+            // 2. Stake
+            const staked = await stakeForMatch(matchId, stakeAmount)
+            if (!staked) return
+
+            // 3. Join Match
             await joinMatch(matchId)
             setTimeout(async () => {
                 await Promise.all([refetchMatch(), refetchParticipants()])
@@ -483,7 +498,7 @@ export default function MatchDetail() {
                                 <div className="text-center py-4"><p className="text-gray-400 mb-4">Connect wallet to participate</p><ConnectButton /></div>
                             ) : (
                                 <>
-                                    {canJoin && <Button className="w-full" onClick={handleJoin} loading={isJoiningMatch}>Join Match ({Number(match.entryStake / 10n ** 18n)} TODO)</Button>}
+                                    {canJoin && <Button className="w-full" onClick={handleJoin} loading={isJoiningMatch || isStaking}>Join Match ({Number(match.entryStake / 10n ** 18n)} TODO)</Button>}
                                     {canStart && <Button className="w-full" onClick={handleStartMatch} loading={isStartingMatch}>Start Match</Button>}
                                     {canStartVoting && (
                                         <Button className="w-full" onClick={handleStartVoting} loading={isStartingVoting}>End Match & Start Voting</Button>
