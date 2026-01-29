@@ -1,18 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-/**
- * @title Relayer
- * @dev Deployed on every EVM network
- * Users interact with this contract - emits events that backend listens to
- * Backend then calls TodosArena functions using deployer's private key
- */
 contract Relayer {
     
-    address public deployer; // Deployer account (receives stakes, sends rewards)
-    address public backend; // Backend service address
+    address public deployer;
+    address public backend;
     
-    // Enum for action types
     enum ActionType {
         CREATE_MATCH,
         JOIN_MATCH,
@@ -21,7 +14,6 @@ contract Relayer {
         WITHDRAW_REWARDS
     }
     
-    // User action struct
     struct UserAction {
         uint256 actionId;
         address user;
@@ -30,7 +22,7 @@ contract Relayer {
         bytes actionData;
         uint256 timestamp;
         uint256 chainId;
-        bool processed; // Marked true by backend after processing
+        bool processed;
     }
     
     mapping(uint256 => UserAction) public actions;
@@ -154,7 +146,6 @@ contract Relayer {
         emit RewardSent(_user, _amount, block.timestamp);
     }
     
-    // View functions
     function getUserActions(address _user) external view returns (uint256[] memory) {
         return userActions[_user];
     }
@@ -178,7 +169,6 @@ contract Relayer {
         deployer = _newDeployer;
     }
     
-    // Emergency withdraw for deployer
     function withdrawBalance() external onlyDeployer {
         uint256 balance = address(this).balance;
         require(balance > 0, "No balance to withdraw");

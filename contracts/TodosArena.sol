@@ -15,7 +15,6 @@ contract TodosArena is Ownable, ReentrancyGuard, ERC20, ERC20Burnable {
     
     uint256 public constant TOTAL_SUPPLY = 1_000_000_000 * 10**18; // 1 Billion TODO
 
-    // Enum for game and match types
     enum GameType {
         INDOOR,
         OUTDOOR,
@@ -93,7 +92,6 @@ contract TodosArena is Ownable, ReentrancyGuard, ERC20, ERC20Burnable {
         address[] finalWinners;
     }
 
-    // Reward struct
     struct RewardPool {
         uint256 matchId;
         uint256 totalAmount;
@@ -102,32 +100,27 @@ contract TodosArena is Ownable, ReentrancyGuard, ERC20, ERC20Burnable {
         uint256 distributedAt;
     }
 
-    // State variables
+
     uint256 public matchCounter;
     mapping(uint256 => Match) public matches;
     mapping(address => uint256[]) public userMatches;
     
-    // Participant info per match
     mapping(uint256 => Participant[]) public matchParticipants;
 
-    // Voting state
     mapping(uint256 => VotingSession) public votingSessions;
     mapping(uint256 => mapping(address => Vote)) public votes;
     mapping(uint256 => mapping(address => uint256)) public winnerVoteCounts;
 
-    // Rewards state
     mapping(uint256 => RewardPool) public rewardPools;
     mapping(address => uint256) public userRewardBalance;
     mapping(address => uint256) public totalEarned;
     uint256 public totalRewardsDistributed;
 
-    // Configuration
     address public platformFeeRecipient;
     uint256 public platformFeePercentage = 5;
     uint256 public constant CONSENSUS_THRESHOLD = 50;
     uint256 public constant VOTING_REWARD = 5 * 10**18;
 
-    // Events
     event MatchCreated(
         uint256 indexed matchId,
         address indexed creator,
@@ -248,7 +241,6 @@ contract TodosArena is Ownable, ReentrancyGuard, ERC20, ERC20Burnable {
         platformFeeRecipient = msg.sender;
     }
 
-    // ==================== MATCH FUNCTIONS ====================
 
     /**
      * @dev Create match - only owner
@@ -409,7 +401,6 @@ contract TodosArena is Ownable, ReentrancyGuard, ERC20, ERC20Burnable {
         emit MatchCancelled(_matchId, _reason);
     }
 
-    // ==================== VIEW FUNCTIONS ====================
 
     function getMatch(uint256 _matchId) external view matchExists(_matchId) returns (MatchView memory) {
         Match storage _match = matches[_matchId];
@@ -471,7 +462,6 @@ contract TodosArena is Ownable, ReentrancyGuard, ERC20, ERC20Burnable {
         return allMatches;
     }
 
-    // ==================== VOTING FUNCTIONS ====================
 
     function submitVote(uint256 _matchId, address _voter, address[] calldata _winnerAddresses)
         external
@@ -591,7 +581,6 @@ contract TodosArena is Ownable, ReentrancyGuard, ERC20, ERC20Burnable {
         return votingSessions[_matchId].finalWinners;
     }
 
-    // ==================== REWARD FUNCTIONS ====================
 
     function distributeRewards(
         uint256 _matchId,
@@ -692,7 +681,6 @@ contract TodosArena is Ownable, ReentrancyGuard, ERC20, ERC20Burnable {
         return totalRewardsDistributed;
     }
 
-    // ==================== TOKEN FUNCTIONS ====================
 
     function mint(address to, uint256 amount, string memory reason) public onlyOwner {
         require(
@@ -707,8 +695,6 @@ contract TodosArena is Ownable, ReentrancyGuard, ERC20, ERC20Burnable {
         _burn(msg.sender, amount);
         emit TokensBurned(msg.sender, amount);
     }
-
-    // ==================== ADMIN FUNCTIONS ====================
 
     function setPlatformFeeRecipient(address _newRecipient) external onlyOwner {
         require(_newRecipient != address(0), "Invalid recipient");

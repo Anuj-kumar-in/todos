@@ -23,7 +23,6 @@ export default function MatchDetail() {
     const matchId = BigInt(id || 0)
     const { address, isConnected, chain } = useAccount()
 
-    // Modal states
     const [showVoteModal, setShowVoteModal] = useState(false)
     const [showCamera, setShowCamera] = useState(false)
     const [showUpload, setShowUpload] = useState(false)
@@ -34,10 +33,8 @@ export default function MatchDetail() {
 
     const [selectedWinners, setSelectedWinners] = useState([])
 
-    // Contract Hooks
     const { joinMatch, isJoiningMatch, startMatch, isStartingMatch, startVotingPhase, isStartingVoting, finalizeVoting, finalizeWithAI, isFinalizingVoting, submitVote, isVoting, useGetMatch, useGetMatchParticipantsWithNetwork, useGetVotingSession, useHasVoted, useFinalWinners, refetchMatches } = useTodosArenaContract()
 
-    // AI Hooks
     const {
         isAnalyzing,
         aiResult,
@@ -49,19 +46,14 @@ export default function MatchDetail() {
         resetAIResult
     } = useAIDetection()
 
-    // Fetch match data using the proper hook
     const { data: matchData, isLoading: isLoadingMatch, refetch: refetchMatch } = useGetMatch(matchId)
 
-    // Fetch participants with network info
     const { data: participantsWithNetwork, isLoading: isLoadingParticipants, refetch: refetchParticipants } = useGetMatchParticipantsWithNetwork(matchId)
 
-    // Fetch voting session data
     const { data: votingSessionData, refetch: refetchVotingSession } = useGetVotingSession(matchId)
 
-    // Check if current user has voted
     const { data: userHasVoted, refetch: refetchHasVoted } = useHasVoted(matchId)
 
-    // Get final winners if voting is finalized
     const { data: finalWinners, refetch: refetchFinalWinners } = useFinalWinners(matchId)
 
     useEffect(() => {
@@ -72,20 +64,17 @@ export default function MatchDetail() {
         refetchFinalWinners()
     }, [id, refetchMatch, refetchParticipants, refetchVotingSession, refetchHasVoted, refetchFinalWinners])
 
-    // Periodic polling during voting phase to catch updates from other participants
     useEffect(() => {
-        // Only poll during voting phase (status 2)
         const interval = setInterval(() => {
             refetchVotingSession()
             refetchHasVoted()
             refetchFinalWinners()
             refetchMatch()
-        }, 5000) // 5 seconds
+        }, 5000)
 
         return () => clearInterval(interval)
     }, [refetchVotingSession, refetchHasVoted, refetchFinalWinners, refetchMatch])
 
-    // Voting session data parsing
     const votingSession = votingSessionData ? {
         matchId: Number(votingSessionData[0] || 0),
         totalVoters: Number(votingSessionData[1] || 0),
@@ -94,7 +83,6 @@ export default function MatchDetail() {
         finalized: votingSessionData[4] || false
     } : null
 
-    // Voting time countdown
     useEffect(() => {
         if (!votingSession || votingSession.votingEndTime === 0) {
             setVotingTimeLeft(null)
@@ -113,7 +101,6 @@ export default function MatchDetail() {
         return () => clearInterval(interval)
     }, [votingSession?.votingEndTime])
 
-    // Format time left for display
     const formatTimeLeft = (seconds) => {
         if (seconds === null) return '--:--'
         if (seconds <= 0) return 'Expired'
@@ -122,7 +109,6 @@ export default function MatchDetail() {
         return `${mins}:${secs.toString().padStart(2, '0')}`
     }
 
-    // Derived values that can be computed safely even when data is loading
     const match = matchData || {}
     const participantsList = participantsWithNetwork ?
         participantsWithNetwork.map(p => typeof p === 'string' ? p : p.addr) : []
@@ -130,39 +116,31 @@ export default function MatchDetail() {
     const status = match.status !== undefined ? Number(match.status) : -1
     const gameType = match.gameType !== undefined ? Number(match.gameType) : 0
 
-    // Auto-finalize voting when all participants have voted OR time expires
-    // Note: This only triggers once per voting session to prevent infinite loops
     const checkAndFinalizeVoting = useCallback(async () => {
-        // Prevent multiple attempts
         if (!votingSession || votingSession.finalized || !isCreator || isFinalizingVoting || finalizationAttempted) return
 
         const allVoted = votingSession.votesReceived >= votingSession.totalVoters
         const timeExpired = votingTimeLeft === 0
 
         if (allVoted || timeExpired) {
-            setFinalizationAttempted(true) // Mark as attempted to prevent loops
+            setFinalizationAttempted(true)
             try {
                 await finalizeVoting(matchId)
                 await refetchVotingSession()
                 await refetchFinalWinners()
                 await refetchMatch()
 
-                // Check if consensus was reached (winners array not empty)
                 const updatedWinners = await refetchFinalWinners()
                 if (!updatedWinners?.data || updatedWinners.data.length === 0) {
-                    // No consensus - trigger AI fallback
                     setShowAIFallbackModal(true)
                     toast('No consensus reached. AI verification required.', { icon: '⚠️' })
                 }
             } catch (error) {
                 console.error('Auto-finalize error:', error)
-                // Don't show repeated error toasts - just log it
             }
         }
     }, [votingSession, votingTimeLeft, isCreator, matchId, finalizeVoting, refetchVotingSession, refetchFinalWinners, refetchMatch, isFinalizingVoting, finalizationAttempted])
 
-    // Trigger auto-finalization check when all votes in or time expires
-    // Only runs once due to the finalizationAttempted guard
     useEffect(() => {
         if (status === 2 && votingSession && !votingSession.finalized && !finalizationAttempted && !isFinalizingVoting) {
             const allVoted = votingSession.votesReceived >= votingSession.totalVoters
@@ -174,17 +152,13 @@ export default function MatchDetail() {
         }
     }, [status, votingSession, votingTimeLeft, checkAndFinalizeVoting, finalizationAttempted, isFinalizingVoting])
 
-    // Reset finalization attempted flag when voting session changes (new match or voting restarted)
     useEffect(() => {
         if (votingSession?.finalized) {
-            // Keep the flag if already finalized
         } else if (votingSession?.matchId) {
-            // Reset when viewing a new match
             setFinalizationAttempted(false)
         }
     }, [votingSession?.matchId, votingSession?.finalized])
 
-    // AI Handlers
     const handleCameraCapture = async () => {
         try {
             const result = await analyzeCameraCapture(Number(match.gameType), participantsList)
@@ -221,13 +195,11 @@ export default function MatchDetail() {
             return
         }
 
-        // Auto-select winners and submit vote
         if (!isConnected) { toast.error('Connect wallet first'); return }
         try {
             await submitVote(matchId, aiResult.winners)
             setShowAIResult(false)
             resetAIResult()
-            // Wait for backend processing then refresh all voting-related data
             setTimeout(async () => {
                 await Promise.all([refetchMatch(), refetchHasVoted(), refetchVotingSession()])
                 toast.success('Vote submitted based on AI result!')
@@ -239,12 +211,11 @@ export default function MatchDetail() {
 
     const handleAIDecline = () => {
         setShowAIResult(false)
-        setShowVoteModal(true) // Switch to manual voting
+        setShowVoteModal(true)
         resetAIResult()
         toast('Switched to manual voting')
     }
 
-    // Add a loading state that combines both match and participant loading
     const isLoading = isLoadingMatch || isLoadingParticipants
 
     if (isLoading) {
@@ -271,15 +242,12 @@ export default function MatchDetail() {
         )
     }
 
-    // After early returns - matchData is guaranteed to exist
-    // Use the match object already defined above (line 113)
     const participantsData = participantsWithNetwork || []
     const formatAddress = (addr) => `${addr.slice(0, 6)}...${addr.slice(-4)}`
     const copyAddress = (addr) => { navigator.clipboard.writeText(addr); toast.success('Address copied!') }
 
     const isParticipant = participantsList.some(p => p.toLowerCase() === address?.toLowerCase())
 
-    // Debug logging for creator status
     console.log('MatchDetail Debug:', {
         userAddress: address,
         matchCreator: match.creator,
@@ -289,19 +257,16 @@ export default function MatchDetail() {
     })
     const spotsLeft = Number(match.maxParticipants) - Number(match.participantCount)
 
-    // Logic for Proof Submission
-    const isOnlineGame = gameType === 2 // Online
-    const isOutdoorGame = gameType === 1 // Outdoor
+    const isOnlineGame = gameType === 2
+    const isOutdoorGame = gameType === 1
 
     const canJoin = status === 0 && !isParticipant && spotsLeft > 0
     const canStart = isCreator && status === 0 && Number(match.participantCount) >= 2
     const canStartVoting = isCreator && status === 1
     const canVote = status === 2 && isParticipant && !userHasVoted
 
-    // Handle AI fallback for draw/fail scenarios
     const handleAIFallbackAnalysis = () => {
         setShowAIFallbackModal(false)
-        // Show camera or upload based on game type
         if (gameType === 2) {
             setShowUpload(true)
         } else {
@@ -309,7 +274,6 @@ export default function MatchDetail() {
         }
     }
 
-    // Handle AI fallback result acceptance
     const handleAIFallbackAccept = async () => {
         if (!aiResult?.winners?.length) {
             toast.error('No winners detected by AI')
@@ -332,7 +296,6 @@ export default function MatchDetail() {
         if (!isConnected) { toast.error('Connect wallet first'); return }
         try {
             await joinMatch(matchId)
-            // Wait for backend processing
             setTimeout(async () => {
                 await Promise.all([refetchMatch(), refetchParticipants()])
                 toast.success('Successfully joined the match!')
@@ -381,7 +344,6 @@ export default function MatchDetail() {
             await submitVote(matchId, selectedWinners)
             setShowVoteModal(false)
             setSelectedWinners([])
-            // Wait for backend processing then refresh all voting-related data
             setTimeout(async () => {
                 await Promise.all([refetchMatch(), refetchHasVoted(), refetchVotingSession()])
                 toast.success('Vote submitted successfully!')
@@ -410,7 +372,6 @@ export default function MatchDetail() {
 
     return (
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-            {/* Back Button */}
             <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="mb-6 flex items-center justify-between">
                 <Link to="/matches" className="inline-flex items-center gap-2 text-gray-400 hover:text-white transition-colors">
                     <ArrowLeft className="w-4 h-4" />Back to Matches
@@ -427,9 +388,7 @@ export default function MatchDetail() {
             </motion.div>
 
             <div className="grid lg:grid-cols-3 gap-8">
-                {/* Main Content */}
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="lg:col-span-2 space-y-6">
-                    {/* Match Header */}
                     <Card gradient glow>
                         <div className="flex items-start gap-4 mb-4">
                             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-500/20 to-primary-500/5 flex items-center justify-center text-3xl">
@@ -466,7 +425,6 @@ export default function MatchDetail() {
                         </div>
                     </Card>
 
-                    {/* Participants */}
                     <Card>
                         <CardHeader><CardTitle className="flex items-center gap-2"><Users className="w-5 h-5 text-primary-400" />Participants ({Number(match.participantCount)}/{Number(match.maxParticipants)})</CardTitle></CardHeader>
                         <CardContent className="space-y-3">
@@ -518,7 +476,6 @@ export default function MatchDetail() {
                     </Card>
                 </motion.div>
 
-                {/* Sidebar */}
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="space-y-6">
                     <Card gradient glow>
                         <CardHeader><CardTitle>Actions</CardTitle></CardHeader>
@@ -533,11 +490,9 @@ export default function MatchDetail() {
                                         <Button className="w-full" onClick={handleStartVoting} loading={isStartingVoting}>End Match & Start Voting</Button>
                                     )}
 
-                                    {/* Voting Phase UI - Only show when voting in progress and NOT all voted yet */}
                                     {status === 2 && isParticipant && !votingSession?.finalized &&
                                         !(votingSession && votingSession.votesReceived >= votingSession.totalVoters) && (
                                             <div className="space-y-4">
-                                                {/* Voting Progress Section */}
                                                 {votingSession && (
                                                     <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
                                                         <div className="flex items-center justify-between">
@@ -558,7 +513,6 @@ export default function MatchDetail() {
                                                                 {votingSession.votesReceived} / {votingSession.totalVoters}
                                                             </span>
                                                         </div>
-                                                        {/* Progress Bar */}
                                                         <div className="w-full bg-gray-700 rounded-full h-2">
                                                             <div
                                                                 className="bg-gradient-to-r from-primary-500 to-purple-500 h-2 rounded-full transition-all duration-500"
@@ -568,7 +522,6 @@ export default function MatchDetail() {
                                                     </div>
                                                 )}
 
-                                                {/* User Has Voted - Show Voted State */}
                                                 {userHasVoted ? (
                                                     <motion.div
                                                         initial={{ opacity: 0, scale: 0.9 }}
@@ -586,9 +539,7 @@ export default function MatchDetail() {
                                                         </div>
                                                     </motion.div>
                                                 ) : (
-                                                    /* User Has Not Voted - Show Voting Options */
                                                     <div className="space-y-3">
-                                                        {/* AI Proof Submission - Camera for physical games */}
                                                         {gameType !== 2 && (
                                                             <Button
                                                                 className="w-full"
@@ -600,7 +551,6 @@ export default function MatchDetail() {
                                                                 AI Live Verify
                                                             </Button>
                                                         )}
-                                                        {/* AI Proof Submission - Upload for Online games */}
                                                         {gameType === 2 && (
                                                             <Button
                                                                 className="w-full"
@@ -613,7 +563,6 @@ export default function MatchDetail() {
                                                             </Button>
                                                         )}
 
-                                                        {/* Manual Voting */}
                                                         <Button
                                                             className="w-full"
                                                             icon={Vote}
@@ -630,7 +579,6 @@ export default function MatchDetail() {
                                             </div>
                                         )}
 
-                                    {/* All Participants Voted - Ready to Finalize */}
                                     {status === 2 && votingSession && !votingSession.finalized &&
                                         votingSession.votesReceived >= votingSession.totalVoters && (
                                             <motion.div
@@ -673,7 +621,6 @@ export default function MatchDetail() {
                                             </motion.div>
                                         )}
 
-                                    {/* Show Results When Voting is Finalized */}
                                     {status === 2 && votingSession?.finalized && (
                                         <motion.div
                                             initial={{ opacity: 0, y: 10 }}
@@ -757,7 +704,6 @@ export default function MatchDetail() {
                 </motion.div>
             </div>
 
-            {/* Modals */}
             <Modal isOpen={showVoteModal} onClose={() => setShowVoteModal(false)} title="Vote for Winners" size="md">
                 <div className="space-y-4">
                     <p className="text-gray-400">Select the participant(s) you believe won this match.</p>
@@ -779,7 +725,6 @@ export default function MatchDetail() {
                 </div>
             </Modal>
 
-            {/* AI Components */}
             {showCamera && (
                 <CameraCapture
                     videoRef={videoRef}
@@ -811,7 +756,6 @@ export default function MatchDetail() {
                 />
             )}
 
-            {/* AI Fallback Modal for Draw/Fail Scenarios */}
             <Modal
                 isOpen={showAIFallbackModal}
                 onClose={() => setShowAIFallbackModal(false)}
