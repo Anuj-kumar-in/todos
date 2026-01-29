@@ -1,22 +1,33 @@
 import { useReadContract, useAccount } from 'wagmi'
 import { formatEther } from 'viem'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { ethers } from 'ethers'
-import { CONTRACT_ADDRESSES, TODO_ARENA_ABI } from '../config/contracts'
+import { CONTRACT_ADDRESSES, TODO_ARENA_ABI, NETWORK_NAMES } from '../config/contracts'
 import toast from 'react-hot-toast'
+
+// Primary network chain ID (Sepolia) - where TodosArena is deployed
+const PRIMARY_CHAIN_ID = 11155111
 
 /**
  * useTodosArenaContract Hook
  * 
- * - READS: Uses wagmi hooks to read from TodosArena
- * - WRITES: Uses ethers.js with PRIVATE_KEY from .env to call TodosArena
+ * - READS: Always reads from the PRIMARY network (Sepolia) where TodosArena is deployed
+ * - WRITES: Uses ethers.js with PRIVATE_KEY from .env to call TodosArena on primary network
+ * - Network independence: Match data remains consistent regardless of user's connected network
+ * - Only joinMatch captures user's network for storage in match details
  */
 export function useTodosArenaContract() {
   const { address, chain } = useAccount()
-  const chainId = chain?.id || 31337
 
-  // Get TodosArena address
-  const todoArenaAddress = CONTRACT_ADDRESSES[chainId]?.todosArena ||
+  // User's current chain (for joinMatch network storage)
+  const userChainId = chain?.id || 31337
+  const userNetworkName = useMemo(() => {
+    return chain?.name || NETWORK_NAMES[userChainId] || 'Unknown Network'
+  }, [chain?.name, userChainId])
+
+  // ALWAYS use the primary network (Sepolia) for TodosArena address
+  // This ensures match data is consistent regardless of user's connected network
+  const todoArenaAddress = CONTRACT_ADDRESSES[PRIMARY_CHAIN_ID]?.todosArena ||
     CONTRACT_ADDRESSES.primary?.todosArena
 
   // Loading states
@@ -27,10 +38,11 @@ export function useTodosArenaContract() {
   const [isFinalizingVoting, setIsFinalizingVoting] = useState(false)
 
   // ==================== ETHERS.JS CONTRACT INSTANCE ====================
+  // Always connects to the PRIMARY network (Sepolia) RPC
 
   const getContract = useCallback(() => {
     const privateKey = import.meta.env.VITE_PRIVATE_KEY
-    const rpcUrl = import.meta.env.VITE_RPC_URL
+    const rpcUrl = import.meta.env.VITE_RPC_URL // Should be Sepolia RPC
 
     if (!privateKey) {
       throw new Error('VITE_PRIVATE_KEY not set in .env')
@@ -47,6 +59,7 @@ export function useTodosArenaContract() {
     address: todoArenaAddress,
     abi: TODO_ARENA_ABI,
     functionName: 'matchCounter',
+    chainId: PRIMARY_CHAIN_ID, // Always read from Sepolia
   })
 
   const {
@@ -57,6 +70,7 @@ export function useTodosArenaContract() {
     address: todoArenaAddress,
     abi: TODO_ARENA_ABI,
     functionName: 'getAllMatches',
+    chainId: PRIMARY_CHAIN_ID, // Always read from Sepolia
   })
 
   const { data: userMatches, refetch: refetchUserMatches } = useReadContract({
@@ -64,6 +78,7 @@ export function useTodosArenaContract() {
     abi: TODO_ARENA_ABI,
     functionName: 'getUserMatches',
     args: [address],
+    chainId: PRIMARY_CHAIN_ID, // Always read from Sepolia
     query: { enabled: !!address },
   })
 
@@ -72,6 +87,7 @@ export function useTodosArenaContract() {
     abi: TODO_ARENA_ABI,
     functionName: 'getRewardBalance',
     args: [address],
+    chainId: PRIMARY_CHAIN_ID, // Always read from Sepolia
     query: { enabled: !!address },
   })
 
@@ -80,6 +96,7 @@ export function useTodosArenaContract() {
     abi: TODO_ARENA_ABI,
     functionName: 'getTotalEarned',
     args: [address],
+    chainId: PRIMARY_CHAIN_ID, // Always read from Sepolia
     query: { enabled: !!address },
   })
 
@@ -122,15 +139,16 @@ export function useTodosArenaContract() {
       return
     }
 
-    // Use provided network name or get from current chain
-    const network = networkName || chain?.name || 'Unknown Network'
+    // Use provided network name or get from user's current connected chain
+    // This captures which network the user joined from (stored in match details)
+    const network = networkName || userNetworkName
 
     setIsJoiningMatch(true)
     try {
       const contract = getContract()
       const tx = await contract.joinMatch(matchId, address, network)
       await tx.wait()
-      toast.success('Joined match!')
+      toast.success(`Joined match from ${network}!`)
       refetchMatches()
       refetchUserMatches()
     } catch (error) {
@@ -140,7 +158,7 @@ export function useTodosArenaContract() {
     } finally {
       setIsJoiningMatch(false)
     }
-  }, [address, chain, getContract, refetchMatches, refetchUserMatches])
+  }, [address, userNetworkName, getContract, refetchMatches, refetchUserMatches])
 
   const startVotingPhase = useCallback(async (matchId) => {
     setIsStartingMatch(true)
@@ -246,6 +264,7 @@ export function useTodosArenaContract() {
     abi: TODO_ARENA_ABI,
     functionName: 'getMatch',
     args: [matchId],
+    chainId: PRIMARY_CHAIN_ID, // Always read from Sepolia
     query: { enabled: !!matchId && matchId > 0 },
   })
 
@@ -254,6 +273,7 @@ export function useTodosArenaContract() {
     abi: TODO_ARENA_ABI,
     functionName: 'getMatchParticipants',
     args: [matchId],
+    chainId: PRIMARY_CHAIN_ID, // Always read from Sepolia
     query: { enabled: !!matchId && matchId > 0 },
   })
 
@@ -262,6 +282,7 @@ export function useTodosArenaContract() {
     abi: TODO_ARENA_ABI,
     functionName: 'getMatchParticipantsWithNetwork',
     args: [matchId],
+    chainId: PRIMARY_CHAIN_ID, // Always read from Sepolia
     query: { enabled: !!matchId && matchId > 0 },
   })
 
@@ -270,6 +291,7 @@ export function useTodosArenaContract() {
     abi: TODO_ARENA_ABI,
     functionName: 'getVotingSession',
     args: [matchId],
+    chainId: PRIMARY_CHAIN_ID, // Always read from Sepolia
     query: { enabled: !!matchId && matchId > 0 },
   })
 
@@ -278,6 +300,7 @@ export function useTodosArenaContract() {
     abi: TODO_ARENA_ABI,
     functionName: 'hasVoted',
     args: [matchId, address],
+    chainId: PRIMARY_CHAIN_ID, // Always read from Sepolia
     query: { enabled: !!matchId && !!address && matchId > 0 },
   })
 
@@ -286,6 +309,7 @@ export function useTodosArenaContract() {
     abi: TODO_ARENA_ABI,
     functionName: 'getFinalWinners',
     args: [matchId],
+    chainId: PRIMARY_CHAIN_ID, // Always read from Sepolia
     query: { enabled: !!matchId && matchId > 0 },
   })
 
@@ -294,6 +318,7 @@ export function useTodosArenaContract() {
     abi: TODO_ARENA_ABI,
     functionName: 'getRewardPool',
     args: [matchId],
+    chainId: PRIMARY_CHAIN_ID, // Always read from Sepolia
     query: { enabled: !!matchId && matchId > 0 },
   })
 

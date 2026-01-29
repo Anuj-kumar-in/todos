@@ -12,7 +12,6 @@ import ScreenshotUpload from '../components/ScreenshotUpload'
 import AIResultModal from '../components/AIResultModal'
 import { MatchStatusBadge } from '../components/ui/Badge'
 import { GAME_TYPE_ICONS, GAME_TYPE_NAMES, TODO_ARENA_ABI } from '../config/contracts'
-import { getContractAddresses } from '../config/wagmi'
 import { useTodosArenaContract } from '../hooks/useTodosArenaContract'
 import useAIDetection from '../hooks/useAIDetection'
 import { Loader } from '../components/ui/Loader'
@@ -23,8 +22,6 @@ export default function MatchDetail() {
     const { id } = useParams()
     const matchId = BigInt(id || 0)
     const { address, isConnected, chain } = useAccount()
-    const chainId = chain?.id || 31337
-    const addresses = getContractAddresses(chainId)
 
     // Modal states
     const [showVoteModal, setShowVoteModal] = useState(false)
