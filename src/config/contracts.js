@@ -1,34 +1,21 @@
 export const CONTRACT_ADDRESSES = {
-  // ==================== PRIMARY NETWORK (Source of Truth) ====================
-  // Deploy TodosArena ONLY on primary network
   primary: {
     todosArena: import.meta.env.VITE_TODOS_ARENA_ADDRESS || '0x0000000000000000000000000000000000000000'
   },
-
-
-
-  // ==================== ETHEREUM SEPOLIA TESTNET ====================
   11155111: {
     relayer: import.meta.env.VITE_SEPOLIA_RELAYER_ADDRESS || '0x0000000000000000000000000000000000000000',
     todosArena: import.meta.env.VITE_TODOS_ARENA_ADDRESS || '0x0000000000000000000000000000000000000000',
   },
 
-  // ==================== ARBITRUM MAINNET ====================
   42161: {
     relayer: import.meta.env.ARBITRUM_RELAYER_ADDRESS || '0x0000000000000000000000000000000000000000',
   },
-
-  // ==================== ARBITRUM SEPOLIA TESTNET ====================
   421614: {
     relayer: import.meta.env.ARBITRUM_SEPOLIA_RELAYER_ADDRESS || '0x0000000000000000000000000000000000000000',
   },
-
-  // ==================== OPTIMISM MAINNET ====================
   10: {
     relayer: import.meta.env.OPTIMISM_RELAYER_ADDRESS || '0x0000000000000000000000000000000000000000',
   },
-
-  // ==================== OPTIMISM SEPOLIA TESTNET ====================
   11155420: {
     relayer: import.meta.env.OPTIMISM_SEPOLIA_RELAYER_ADDRESS || '0x0000000000000000000000000000000000000000',
   },
@@ -122,26 +109,19 @@ export const CONTRACT_ADDRESSES = {
   5003: {
     relayer: import.meta.env.MANTLE_SEPOLIA_RELAYER_ADDRESS || '0x0000000000000000000000000000000000000000',
   },
-
-  // ==================== CELO MAINNET ====================
   42220: {
     relayer: import.meta.env.CELO_RELAYER_ADDRESS || '0x0000000000000000000000000000000000000000',
   },
-
-  // ==================== HARDHAT LOCAL ====================
   31337: {
     todosArena: '0x5FbDB2315678afecb367f032d93F642f64180aa3',
     relayer: '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512',
   },
 }
 
-// ==================== ACCOUNT ADDRESSES ====================
 export const ACCOUNTS = {
   ADMIN: import.meta.env.ADMIN_ADDRESS || '0x0000000000000000000000000000000000000000',     // Has BRIDGE_ROLE on TodosArena
   DEPLOYER: import.meta.env.DEPLOYER_ADDRESS || '0x0000000000000000000000000000000000000000', // Receives stakes from users
 }
-
-// ==================== NETWORK NAMES ====================
 export const NETWORK_NAMES = {
   1: 'Ethereum',
   11155111: 'Ethereum Sepolia',
@@ -171,8 +151,6 @@ export const NETWORK_NAMES = {
   31337: 'Hardhat Local',
 }
 
-// ==================== DEPLOYMENT CONFIGURATION ====================
-// Use this to determine which contract to use for each network
 export const getContractAddresses = (chainId) => {
   const addresses = CONTRACT_ADDRESSES[chainId]
 
@@ -190,22 +168,15 @@ export const getContractAddresses = (chainId) => {
   }
 }
 
-// Check if chain is primary network
 export const isPrimaryNetwork = (chainId) => {
-  return chainId === 1 // Ethereum Mainnet is primary
+  return chainId === 1
 }
-
-// Check if Relayer is deployed on this chain
 export const hasRelayer = (chainId) => {
   return !!CONTRACT_ADDRESSES[chainId]?.relayer
 }
-
-// Get primary network TODO Arena address
 export const getPrimaryTodosArena = () => {
   return CONTRACT_ADDRESSES.primary?.todosArena || '0x0000000000000000000000000000000000000000'
 }
-
-// ==================== MATCH STATUS ====================
 export const GAME_TYPES = {
   INDOOR: 0,
   OUTDOOR: 1,
@@ -230,7 +201,7 @@ export const GAME_TYPE_ICONS = {
   4: '🔄',
 }
 
-// Match statuses
+
 export const MATCH_STATUS = {
   CREATED: 0,
   ACTIVE: 1,
@@ -255,7 +226,6 @@ export const MATCH_STATUS_COLORS = {
   4: 'bg-red-500',
 }
 
-// ==================== CONTRACT ABIS ====================
 export const TODO_ARENA_ABI = [
   {
     "inputs": [],
@@ -2226,16 +2196,9 @@ export const TODO_ARENA_ABI = [
 export const RELAYER_ABI = [
   {
     "inputs": [
-      {
-        "internalType": "address",
-        "name": "_deployer",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_backend",
-        "type": "address"
-      }
+      { "internalType": "address", "name": "_deployer", "type": "address" },
+      { "internalType": "address", "name": "_backend", "type": "address" },
+      { "internalType": "address", "name": "_todoToken", "type": "address" }
     ],
     "stateMutability": "nonpayable",
     "type": "constructor"
@@ -2243,24 +2206,9 @@ export const RELAYER_ABI = [
   {
     "anonymous": false,
     "inputs": [
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "actionId",
-        "type": "uint256"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "user",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "bool",
-        "name": "success",
-        "type": "bool"
-      }
+      { "indexed": true, "internalType": "uint256", "name": "actionId", "type": "uint256" },
+      { "indexed": true, "internalType": "address", "name": "user", "type": "address" },
+      { "indexed": false, "internalType": "bool", "name": "success", "type": "bool" }
     ],
     "name": "ActionProcessed",
     "type": "event"
@@ -2268,42 +2216,12 @@ export const RELAYER_ABI = [
   {
     "anonymous": false,
     "inputs": [
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "actionId",
-        "type": "uint256"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "user",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "enum Relayer.ActionType",
-        "name": "actionType",
-        "type": "uint8"
-      },
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "matchId",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "timestamp",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "chainId",
-        "type": "uint256"
-      }
+      { "indexed": true, "internalType": "uint256", "name": "actionId", "type": "uint256" },
+      { "indexed": true, "internalType": "address", "name": "user", "type": "address" },
+      { "indexed": false, "internalType": "enum Relayer.ActionType", "name": "actionType", "type": "uint8" },
+      { "indexed": true, "internalType": "uint256", "name": "matchId", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "timestamp", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "chainId", "type": "uint256" }
     ],
     "name": "ActionSubmitted",
     "type": "event"
@@ -2311,24 +2229,9 @@ export const RELAYER_ABI = [
   {
     "anonymous": false,
     "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "user",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "timestamp",
-        "type": "uint256"
-      }
+      { "indexed": true, "internalType": "address", "name": "user", "type": "address" },
+      { "indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "timestamp", "type": "uint256" }
     ],
     "name": "RewardSent",
     "type": "event"
@@ -2336,179 +2239,177 @@ export const RELAYER_ABI = [
   {
     "anonymous": false,
     "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "user",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "matchId",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "timestamp",
-        "type": "uint256"
-      }
+      { "indexed": true, "internalType": "address", "name": "user", "type": "address" },
+      { "indexed": true, "internalType": "uint256", "name": "matchId", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "timestamp", "type": "uint256" }
     ],
     "name": "StakeReceived",
     "type": "event"
   },
   {
-    "inputs": [],
-    "name": "actionCounter",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "address", "name": "user", "type": "address" },
+      { "indexed": false, "internalType": "uint256", "name": "bonusAmount", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "timestamp", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "chainId", "type": "uint256" }
     ],
+    "name": "UserRegistered",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "address", "name": "user", "type": "address" },
+      { "indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "timestamp", "type": "uint256" }
+    ],
+    "name": "TokensDeposited",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "address", "name": "user", "type": "address" },
+      { "indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "timestamp", "type": "uint256" }
+    ],
+    "name": "TokensWithdrawn",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "NEW_USER_BONUS",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
     "stateMutability": "view",
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "name": "actions",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "actionId",
-        "type": "uint256"
-      },
-      {
-        "internalType": "address",
-        "name": "user",
-        "type": "address"
-      },
-      {
-        "internalType": "enum Relayer.ActionType",
-        "name": "actionType",
-        "type": "uint8"
-      },
-      {
-        "internalType": "uint256",
-        "name": "matchId",
-        "type": "uint256"
-      },
-      {
-        "internalType": "bytes",
-        "name": "actionData",
-        "type": "bytes"
-      },
-      {
-        "internalType": "uint256",
-        "name": "timestamp",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "chainId",
-        "type": "uint256"
-      },
-      {
-        "internalType": "bool",
-        "name": "processed",
-        "type": "bool"
-      }
-    ],
+    "inputs": [],
+    "name": "actionCounter",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
     "stateMutability": "view",
     "type": "function"
   },
   {
     "inputs": [],
     "name": "backend",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
+    "outputs": [{ "internalType": "address", "name": "", "type": "address" }],
     "stateMutability": "view",
     "type": "function"
   },
   {
     "inputs": [],
     "name": "deployer",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
+    "outputs": [{ "internalType": "address", "name": "", "type": "address" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "todoToken",
+    "outputs": [{ "internalType": "contract IERC20", "name": "", "type": "address" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "totalUsersRegistered",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "registerUser",
+    "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "address", "name": "_user", "type": "address" }],
+    "name": "isUserRegistered",
+    "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "address", "name": "_user", "type": "address" }],
+    "name": "getUserBalance",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
     "stateMutability": "view",
     "type": "function"
   },
   {
     "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "_actionId",
-        "type": "uint256"
-      }
+      { "internalType": "uint256", "name": "_matchId", "type": "uint256" },
+      { "internalType": "uint256", "name": "_amount", "type": "uint256" }
     ],
+    "name": "stakeForMatch",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "uint256", "name": "_amount", "type": "uint256" }],
+    "name": "depositTokens",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "uint256", "name": "_amount", "type": "uint256" }],
+    "name": "withdrawTokens",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "_user", "type": "address" },
+      { "internalType": "uint256", "name": "_amount", "type": "uint256" }
+    ],
+    "name": "addReward",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "enum Relayer.ActionType", "name": "_actionType", "type": "uint8" },
+      { "internalType": "uint256", "name": "_matchId", "type": "uint256" },
+      { "internalType": "bytes", "name": "_actionData", "type": "bytes" }
+    ],
+    "name": "submitAction",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "_actionId", "type": "uint256" },
+      { "internalType": "bool", "name": "_success", "type": "bool" }
+    ],
+    "name": "markActionProcessed",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "uint256", "name": "_actionId", "type": "uint256" }],
     "name": "getAction",
     "outputs": [
       {
         "components": [
-          {
-            "internalType": "uint256",
-            "name": "actionId",
-            "type": "uint256"
-          },
-          {
-            "internalType": "address",
-            "name": "user",
-            "type": "address"
-          },
-          {
-            "internalType": "enum Relayer.ActionType",
-            "name": "actionType",
-            "type": "uint8"
-          },
-          {
-            "internalType": "uint256",
-            "name": "matchId",
-            "type": "uint256"
-          },
-          {
-            "internalType": "bytes",
-            "name": "actionData",
-            "type": "bytes"
-          },
-          {
-            "internalType": "uint256",
-            "name": "timestamp",
-            "type": "uint256"
-          },
-          {
-            "internalType": "uint256",
-            "name": "chainId",
-            "type": "uint256"
-          },
-          {
-            "internalType": "bool",
-            "name": "processed",
-            "type": "bool"
-          }
+          { "internalType": "uint256", "name": "actionId", "type": "uint256" },
+          { "internalType": "address", "name": "user", "type": "address" },
+          { "internalType": "enum Relayer.ActionType", "name": "actionType", "type": "uint8" },
+          { "internalType": "uint256", "name": "matchId", "type": "uint256" },
+          { "internalType": "bytes", "name": "actionData", "type": "bytes" },
+          { "internalType": "uint256", "name": "timestamp", "type": "uint256" },
+          { "internalType": "uint256", "name": "chainId", "type": "uint256" },
+          { "internalType": "bool", "name": "processed", "type": "bool" }
         ],
         "internalType": "struct Relayer.UserAction",
         "name": "",
@@ -2519,168 +2420,43 @@ export const RELAYER_ABI = [
     "type": "function"
   },
   {
+    "inputs": [{ "internalType": "address", "name": "_user", "type": "address" }],
+    "name": "getUserActions",
+    "outputs": [{ "internalType": "uint256[]", "name": "", "type": "uint256[]" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "getCurrentChainId",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
     "stateMutability": "view",
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_user",
-        "type": "address"
-      }
-    ],
-    "name": "getUserActions",
-    "outputs": [
-      {
-        "internalType": "uint256[]",
-        "name": "",
-        "type": "uint256[]"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "_actionId",
-        "type": "uint256"
-      },
-      {
-        "internalType": "bool",
-        "name": "_success",
-        "type": "bool"
-      }
-    ],
-    "name": "markActionProcessed",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_user",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_amount",
-        "type": "uint256"
-      }
-    ],
-    "name": "sendReward",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "_matchId",
-        "type": "uint256"
-      }
-    ],
-    "name": "sendStake",
-    "outputs": [],
-    "stateMutability": "payable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_newBackend",
-        "type": "address"
-      }
-    ],
+    "inputs": [{ "internalType": "address", "name": "_newBackend", "type": "address" }],
     "name": "setBackend",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_newDeployer",
-        "type": "address"
-      }
-    ],
+    "inputs": [{ "internalType": "address", "name": "_newDeployer", "type": "address" }],
     "name": "setDeployer",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "enum Relayer.ActionType",
-        "name": "_actionType",
-        "type": "uint8"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_matchId",
-        "type": "uint256"
-      },
-      {
-        "internalType": "bytes",
-        "name": "_actionData",
-        "type": "bytes"
-      }
-    ],
-    "name": "submitAction",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
+    "inputs": [{ "internalType": "address", "name": "_newToken", "type": "address" }],
+    "name": "setTodoToken",
+    "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "name": "userActions",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "withdrawBalance",
+    "inputs": [{ "internalType": "uint256", "name": "_amount", "type": "uint256" }],
+    "name": "withdrawContractTokens",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

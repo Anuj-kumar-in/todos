@@ -15,7 +15,6 @@ import { GAME_TYPE_ICONS, GAME_TYPE_NAMES, TODO_ARENA_ABI } from '../config/cont
 import { useTodosArenaContract } from '../hooks/useTodosArenaContract'
 import useAIDetection from '../hooks/useAIDetection'
 import { Loader } from '../components/ui/Loader'
-import { formatEther } from 'viem'
 import toast from 'react-hot-toast'
 
 export default function MatchDetail() {
@@ -409,12 +408,12 @@ export default function MatchDetail() {
                         <div className="grid grid-cols-3 gap-4">
                             <div className="text-center p-4 rounded-xl bg-white/5 border border-white/10">
                                 <Coins className="w-6 h-6 text-yellow-500 mx-auto mb-2" />
-                                <div className="text-xl font-bold text-white">{parseFloat(formatEther(match.entryStake)).toFixed(3)} ETH</div>
+                                <div className="text-xl font-bold text-white">{Number(match.entryStake / 10n ** 18n)} TODO</div>
                                 <div className="text-sm text-gray-500">Entry Stake</div>
                             </div>
                             <div className="text-center p-4 rounded-xl bg-white/5 border border-white/10">
                                 <Trophy className="w-6 h-6 text-green-500 mx-auto mb-2" />
-                                <div className="text-xl font-bold text-white">{parseFloat(formatEther(match.totalPrizePool)).toFixed(3)} ETH</div>
+                                <div className="text-xl font-bold text-white">{Number(match.totalPrizePool / 10n ** 18n)} TODO</div>
                                 <div className="text-sm text-gray-500">Prize Pool</div>
                             </div>
                             <div className="text-center p-4 rounded-xl bg-white/5 border border-white/10">
@@ -484,7 +483,7 @@ export default function MatchDetail() {
                                 <div className="text-center py-4"><p className="text-gray-400 mb-4">Connect wallet to participate</p><ConnectButton /></div>
                             ) : (
                                 <>
-                                    {canJoin && <Button className="w-full" onClick={handleJoin} loading={isJoiningMatch}>Join Match ({parseFloat(formatEther(match.entryStake)).toFixed(3)} ETH)</Button>}
+                                    {canJoin && <Button className="w-full" onClick={handleJoin} loading={isJoiningMatch}>Join Match ({Number(match.entryStake / 10n ** 18n)} TODO)</Button>}
                                     {canStart && <Button className="w-full" onClick={handleStartMatch} loading={isStartingMatch}>Start Match</Button>}
                                     {canStartVoting && (
                                         <Button className="w-full" onClick={handleStartVoting} loading={isStartingVoting}>End Match & Start Voting</Button>

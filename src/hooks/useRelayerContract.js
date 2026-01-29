@@ -1,13 +1,10 @@
 import { useReadContract, useWriteContract, useAccount } from 'wagmi'
-import { parseEther } from 'viem'
+import { useState, useCallback } from 'react'
 import { CONTRACT_ADDRESSES, RELAYER_ABI } from '../config/contracts'
 import toast from 'react-hot-toast'
 
-/**
- * useRelayerContract Hook
- * 
- * Simple hook for Relayer interactions - stake payments only.
- */
+const NEW_USER_BONUS = 100n * 10n ** 18n
+
 export function useRelayerContract() {
   const { address, chain } = useAccount()
   const chainId = chain?.id || 31337
@@ -15,31 +12,30 @@ export function useRelayerContract() {
   const relayerAddress = CONTRACT_ADDRESSES[chainId]?.relayer
   const isRelayerAvailable = relayerAddress && relayerAddress !== '0x0000000000000000000000000000000000000000'
 
-  // Send stake
-  const { writeContractAsync: sendStakeWrite, isPending: isSendingStake } = useWriteContract()
+  const [isRegistering, setIsRegistering] = useState(false)
+  const [isStaking, setIsStaking] = useState(false)
 
-  const sendStake = async (matchId, amount) => {
-    try {
-      if (!isRelayerAvailable) throw new Error('Relayer not available')
+  const { writeContractAsync: registerUserWrite } = useWriteContract()
+  const { writeContractAsync: stakeForMatchWrite } = useWriteContract()
+  const { writeContractAsync: depositTokensWrite } = useWriteContract()
+  const { writeContractAsync: withdrawTokensWrite } = useWriteContract()
 
-      const tx = await sendStakeWrite({
-        address: relayerAddress,
-        abi: RELAYER_ABI,
-        functionName: 'sendStake',
-        args: [BigInt(matchId)],
-        value: typeof amount === 'string' ? parseEther(amount) : BigInt(amount),
-      })
+  const { data: isUserRegistered, refetch: refetchRegistration } = useReadContract({
+    address: relayerAddress,
+    abi: RELAYER_ABI,
+    functionName: 'isUserRegistered',
+    args: [address],
+    query: { enabled: isRelayerAvailable && !!address },
+  })
 
-      toast.success('Stake sent!')
-      return tx
-    } catch (error) {
-      console.error('Send stake error:', error)
-      toast.error(error.shortMessage || error.message || 'Failed to send stake')
-      throw error
-    }
-  }
+  const { data: userBalance, refetch: refetchBalance } = useReadContract({
+    address: relayerAddress,
+    abi: RELAYER_ABI,
+    functionName: 'getUserBalance',
+    args: [address],
+    query: { enabled: isRelayerAvailable && !!address },
+  })
 
-  // Read deployer address
   const { data: deployerAddress } = useReadContract({
     address: relayerAddress,
     abi: RELAYER_ABI,
@@ -47,13 +43,142 @@ export function useRelayerContract() {
     query: { enabled: isRelayerAvailable },
   })
 
+  const registerUser = useCallback(async () => {
+    if (!isRelayerAvailable) {
+      toast.error('Relayer not available on this network')
+      return false
+    }
+
+    if (isUserRegistered) {
+      toast.error('User already registered')
+      return false
+    }
+
+    setIsRegistering(true)
+    try {
+      const tx = await registerUserWrite({
+        address: relayerAddress,
+        abi: RELAYER_ABI,
+        functionName: 'registerUser',
+      })
+
+      toast.success('Registration successful! You received 100 TODO tokens!')
+      await refetchRegistration()
+      await refetchBalance()
+      return true
+    } catch (error) {
+      console.error('Registration error:', error)
+      toast.error(error.shortMessage || error.message || 'Failed to register')
+      return false
+    } finally {
+      setIsRegistering(false)
+    }
+  }, [isRelayerAvailable, isUserRegistered, relayerAddress, registerUserWrite, refetchRegistration, refetchBalance])
+
+  const stakeForMatch = useCallback(async (matchId, amount) => {
+    if (!isRelayerAvailable) {
+      toast.error('Relayer not available on this network')
+      return false
+    }
+
+    if (!isUserRegistered) {
+      toast.error('Please register first')
+      return false
+    }
+
+    const amountBigInt = typeof amount === 'bigint' ? amount : BigInt(amount)
+
+    if (userBalance < amountBigInt) {
+      toast.error('Insufficient TODO balance')
+      return false
+    }
+
+    setIsStaking(true)
+    try {
+      const tx = await stakeForMatchWrite({
+        address: relayerAddress,
+        abi: RELAYER_ABI,
+        functionName: 'stakeForMatch',
+        args: [BigInt(matchId), amountBigInt],
+      })
+
+      toast.success('Stake successful!')
+      await refetchBalance()
+      return true
+    } catch (error) {
+      console.error('Stake error:', error)
+      toast.error(error.shortMessage || error.message || 'Failed to stake')
+      return false
+    } finally {
+      setIsStaking(false)
+    }
+  }, [isRelayerAvailable, isUserRegistered, userBalance, relayerAddress, stakeForMatchWrite, refetchBalance])
+
+  const depositTokens = useCallback(async (amount) => {
+    if (!isRelayerAvailable) {
+      toast.error('Relayer not available')
+      return false
+    }
+
+    try {
+      const tx = await depositTokensWrite({
+        address: relayerAddress,
+        abi: RELAYER_ABI,
+        functionName: 'depositTokens',
+        args: [BigInt(amount)],
+      })
+
+      toast.success('Deposit successful!')
+      await refetchBalance()
+      return true
+    } catch (error) {
+      console.error('Deposit error:', error)
+      toast.error(error.shortMessage || error.message || 'Failed to deposit')
+      return false
+    }
+  }, [isRelayerAvailable, relayerAddress, depositTokensWrite, refetchBalance])
+
+  const withdrawTokens = useCallback(async (amount) => {
+    if (!isRelayerAvailable) {
+      toast.error('Relayer not available')
+      return false
+    }
+
+    try {
+      const tx = await withdrawTokensWrite({
+        address: relayerAddress,
+        abi: RELAYER_ABI,
+        functionName: 'withdrawTokens',
+        args: [BigInt(amount)],
+      })
+
+      toast.success('Withdrawal successful!')
+      await refetchBalance()
+      return true
+    } catch (error) {
+      console.error('Withdraw error:', error)
+      toast.error(error.shortMessage || error.message || 'Failed to withdraw')
+      return false
+    }
+  }, [isRelayerAvailable, relayerAddress, withdrawTokensWrite, refetchBalance])
+
   return {
     relayerAddress,
     isRelayerAvailable,
-    sendStake,
-    isSendingStake,
+    isUserRegistered: !!isUserRegistered,
+    userBalance: userBalance || 0n,
+    userBalanceFormatted: userBalance ? Number(userBalance / 10n ** 18n) : 0,
     deployerAddress,
     currentChainId: chainId,
+    registerUser,
+    isRegistering,
+    stakeForMatch,
+    isStaking,
+    depositTokens,
+    withdrawTokens,
+    refetchBalance,
+    refetchRegistration,
+    NEW_USER_BONUS,
   }
 }
 

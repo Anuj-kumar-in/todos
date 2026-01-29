@@ -1,10 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-contract Relayer {
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+
+contract Relayer is ReentrancyGuard {
+    using SafeERC20 for IERC20;
     
     address public deployer;
     address public backend;
+    IERC20 public todoToken;
+    
+    uint256 public constant NEW_USER_BONUS = 100 * 10**18;
     
     enum ActionType {
         CREATE_MATCH,
@@ -27,8 +35,11 @@ contract Relayer {
     
     mapping(uint256 => UserAction) public actions;
     mapping(address => uint256[]) public userActions;
+    mapping(address => bool) public registeredUsers;
+    mapping(address => uint256) public userTodoBalance;
     
     uint256 public actionCounter;
+    uint256 public totalUsersRegistered;
     
     event ActionSubmitted(
         uint256 indexed actionId,
@@ -45,6 +56,13 @@ contract Relayer {
         bool success
     );
     
+    event UserRegistered(
+        address indexed user,
+        uint256 bonusAmount,
+        uint256 timestamp,
+        uint256 chainId
+    );
+    
     event StakeReceived(
         address indexed user,
         uint256 indexed matchId,
@@ -53,6 +71,18 @@ contract Relayer {
     );
     
     event RewardSent(
+        address indexed user,
+        uint256 amount,
+        uint256 timestamp
+    );
+    
+    event TokensDeposited(
+        address indexed user,
+        uint256 amount,
+        uint256 timestamp
+    );
+    
+    event TokensWithdrawn(
         address indexed user,
         uint256 amount,
         uint256 timestamp
@@ -68,19 +98,34 @@ contract Relayer {
         _;
     }
     
-    constructor(address _deployer, address _backend) {
-        deployer = _deployer;
-        backend = _backend;
+    modifier onlyRegistered() {
+        require(registeredUsers[msg.sender], "User not registered");
+        _;
     }
     
-    /**
-     * @dev User submits action - backend listens to event
-     */
+    constructor(address _deployer, address _backend, address _todoToken) {
+        deployer = _deployer;
+        backend = _backend;
+        todoToken = IERC20(_todoToken);
+    }
+    
+    function registerUser() external nonReentrant returns (bool) {
+        require(!registeredUsers[msg.sender], "User already registered");
+        
+        registeredUsers[msg.sender] = true;
+        userTodoBalance[msg.sender] = NEW_USER_BONUS;
+        totalUsersRegistered++;
+        
+        emit UserRegistered(msg.sender, NEW_USER_BONUS, block.timestamp, block.chainid);
+        
+        return true;
+    }
+    
     function submitAction(
         ActionType _actionType,
         uint256 _matchId,
         bytes calldata _actionData
-    ) external returns (uint256) {
+    ) external onlyRegistered returns (uint256) {
         actionCounter++;
         uint256 actionId = actionCounter;
         
@@ -108,23 +153,34 @@ contract Relayer {
         return actionId;
     }
     
-    /**
-     * @dev User sends stake to deployer for match entry
-     * Deployer's account will bridge funds to TodosArena network
-     */
-    function sendStake(uint256 _matchId) external payable {
-        require(msg.value > 0, "Stake amount must be positive");
+    function stakeForMatch(uint256 _matchId, uint256 _amount) external onlyRegistered nonReentrant {
+        require(_amount > 0, "Stake amount must be positive");
+        require(userTodoBalance[msg.sender] >= _amount, "Insufficient TODO balance");
         
-        // Transfer to deployer
-        (bool sent, ) = deployer.call{value: msg.value}("");
-        require(sent, "Failed to send stake");
+        userTodoBalance[msg.sender] -= _amount;
         
-        emit StakeReceived(msg.sender, _matchId, msg.value, block.timestamp);
+        emit StakeReceived(msg.sender, _matchId, _amount, block.timestamp);
     }
     
-    /**
-     * @dev Backend marks action as processed after calling TodosArena
-     */
+    function depositTokens(uint256 _amount) external onlyRegistered nonReentrant {
+        require(_amount > 0, "Amount must be positive");
+        
+        todoToken.safeTransferFrom(msg.sender, address(this), _amount);
+        userTodoBalance[msg.sender] += _amount;
+        
+        emit TokensDeposited(msg.sender, _amount, block.timestamp);
+    }
+    
+    function withdrawTokens(uint256 _amount) external onlyRegistered nonReentrant {
+        require(_amount > 0, "Amount must be positive");
+        require(userTodoBalance[msg.sender] >= _amount, "Insufficient balance");
+        
+        userTodoBalance[msg.sender] -= _amount;
+        todoToken.safeTransfer(msg.sender, _amount);
+        
+        emit TokensWithdrawn(msg.sender, _amount, block.timestamp);
+    }
+    
     function markActionProcessed(uint256 _actionId, bool _success) external onlyBackend {
         UserAction storage userAction = actions[_actionId];
         require(!userAction.processed, "Action already processed");
@@ -134,14 +190,11 @@ contract Relayer {
         emit ActionProcessed(_actionId, userAction.user, _success);
     }
     
-    /**
-     * @dev Deployer sends rewards to user (bridged from TodosArena network)
-     */
-    function sendReward(address _user, uint256 _amount) external onlyDeployer {
+    function addReward(address _user, uint256 _amount) external onlyBackend {
         require(_amount > 0, "Reward amount must be positive");
+        require(registeredUsers[_user], "User not registered");
         
-        (bool sent, ) = _user.call{value: _amount}("");
-        require(sent, "Failed to send reward");
+        userTodoBalance[_user] += _amount;
         
         emit RewardSent(_user, _amount, block.timestamp);
     }
@@ -158,7 +211,14 @@ contract Relayer {
         return block.chainid;
     }
     
-    // Admin management
+    function isUserRegistered(address _user) external view returns (bool) {
+        return registeredUsers[_user];
+    }
+    
+    function getUserBalance(address _user) external view returns (uint256) {
+        return userTodoBalance[_user];
+    }
+    
     function setBackend(address _newBackend) external onlyDeployer {
         require(_newBackend != address(0), "Invalid backend address");
         backend = _newBackend;
@@ -169,12 +229,14 @@ contract Relayer {
         deployer = _newDeployer;
     }
     
-    function withdrawBalance() external onlyDeployer {
-        uint256 balance = address(this).balance;
-        require(balance > 0, "No balance to withdraw");
-        
-        (bool sent, ) = deployer.call{value: balance}("");
-        require(sent, "Failed to withdraw");
+    function setTodoToken(address _newToken) external onlyDeployer {
+        require(_newToken != address(0), "Invalid token address");
+        todoToken = IERC20(_newToken);
+    }
+    
+    function withdrawContractTokens(uint256 _amount) external onlyDeployer {
+        require(_amount > 0, "Amount must be positive");
+        todoToken.safeTransfer(deployer, _amount);
     }
     
     receive() external payable {}

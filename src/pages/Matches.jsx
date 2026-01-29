@@ -10,7 +10,7 @@ import { GAME_TYPE_ICONS, GAME_TYPE_NAMES } from '../config/contracts'
 import { useTodosArenaContract } from '../hooks/useTodosArenaContract'
 import { useGeolocation } from '../hooks/useGeolocation'
 import { Loader } from '../components/ui/Loader'
-import { formatEther } from 'viem'
+
 
 const mainFilters = [
     { value: 'all', label: 'All Games', icon: Trophy, description: 'View all available matches' },
@@ -28,8 +28,8 @@ function MatchCard({ match }) {
         return `${Math.floor(seconds / 86400)}d ago`
     }
 
-    const entryStake = formatEther(match.entryStake || 0n)
-    const prizePool = formatEther(match.totalPrizePool || 0n)
+    const entryStake = Number((match.entryStake || 0n) / 10n ** 18n)
+    const prizePool = Number((match.totalPrizePool || 0n) / 10n ** 18n)
     const participants = Number(match.participantCount || 0)
     const maxParticipants = Number(match.maxParticipants || 0)
     const spotsLeft = maxParticipants - participants
@@ -51,8 +51,8 @@ function MatchCard({ match }) {
             </div>
             <p className="text-gray-400 text-sm mb-4 line-clamp-2">{match.description || 'No description'}</p>
             <div className="grid grid-cols-3 gap-4 mb-4">
-                <div className="text-center p-3 rounded-xl bg-white/5"><Coins className="w-4 h-4 text-yellow-500 mx-auto mb-1" /><div className="text-white font-medium">{parseFloat(entryStake).toFixed(3)}</div><div className="text-xs text-gray-500">ETH Entry</div></div>
-                <div className="text-center p-3 rounded-xl bg-white/5"><Coins className="w-4 h-4 text-green-500 mx-auto mb-1" /><div className="text-white font-medium">{parseFloat(prizePool).toFixed(3)}</div><div className="text-xs text-gray-500">ETH Prize</div></div>
+                <div className="text-center p-3 rounded-xl bg-white/5"><Coins className="w-4 h-4 text-yellow-500 mx-auto mb-1" /><div className="text-white font-medium">{entryStake}</div><div className="text-xs text-gray-500">TODO Entry</div></div>
+                <div className="text-center p-3 rounded-xl bg-white/5"><Coins className="w-4 h-4 text-green-500 mx-auto mb-1" /><div className="text-white font-medium">{prizePool}</div><div className="text-xs text-gray-500">TODO Prize</div></div>
                 <div className="text-center p-3 rounded-xl bg-white/5"><Users className="w-4 h-4 text-blue-500 mx-auto mb-1" /><div className="text-white font-medium">{participants}/{maxParticipants}</div><div className="text-xs text-gray-500">Players</div></div>
             </div>
             <div className="mb-4">

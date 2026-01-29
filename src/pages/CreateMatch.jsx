@@ -46,7 +46,7 @@ export default function CreateMatch() {
         title: '',
         description: '',
         gameType: '0',
-        entryStake: '0.01',
+        entryStake: '10',
         maxParticipants: '2',
         votingDuration: '86400',
     })
@@ -75,7 +75,7 @@ export default function CreateMatch() {
         const participants = parseInt(formData.maxParticipants)
 
         if (isNaN(stake) || stake <= 0) newErrors.entryStake = 'Entry stake must be greater than 0'
-        if (stake > 10) newErrors.entryStake = 'Maximum entry stake is 10 ETH'
+        if (stake > 1000) newErrors.entryStake = 'Maximum entry stake is 1000 TODO'
         if (isNaN(participants) || participants < 2) newErrors.maxParticipants = 'Minimum 2 participants required'
         if (participants > 100) newErrors.maxParticipants = 'Maximum 100 participants allowed'
 
@@ -107,9 +107,9 @@ export default function CreateMatch() {
                 parseInt(formData.maxParticipants),
                 parseInt(formData.votingDuration)
             )
-            
+
             toast.success('Match created on blockchain!')
-            
+
             // Wait a bit for the transaction to be processed, then navigate to matches
             setTimeout(() => {
                 navigate('/matches')
@@ -258,11 +258,11 @@ export default function CreateMatch() {
                             <CardContent className="space-y-6">
                                 <div className="grid sm:grid-cols-2 gap-6">
                                     <Input
-                                        label="Entry Stake (ETH)"
+                                        label="Entry Stake (TODO)"
                                         type="number"
-                                        step="0.001"
-                                        min="0.001"
-                                        placeholder="0.01"
+                                        step="1"
+                                        min="1"
+                                        placeholder="10"
                                         value={formData.entryStake}
                                         onChange={(e) => updateField('entryStake', e.target.value)}
                                         error={errors.entryStake}
@@ -295,10 +295,10 @@ export default function CreateMatch() {
                                         <span className="text-gray-400">Estimated Prize Pool</span>
                                     </div>
                                     <div className="text-3xl font-bold text-white">
-                                        {prizePool.toFixed(4)} ETH
+                                        {prizePool.toFixed(0)} TODO
                                     </div>
                                     <p className="text-sm text-gray-400 mt-2">
-                                        Based on {formData.maxParticipants} participants × {formData.entryStake} ETH entry
+                                        Based on {formData.maxParticipants} participants × {formData.entryStake} TODO entry
                                     </p>
                                 </div>
 
@@ -339,7 +339,7 @@ export default function CreateMatch() {
                                         <div className="text-center p-4 rounded-xl bg-white/5">
                                             <Coins className="w-5 h-5 text-yellow-500 mx-auto mb-2" />
                                             <div className="text-lg font-bold text-white">{formData.entryStake}</div>
-                                            <div className="text-xs text-gray-500">Entry (ETH)</div>
+                                            <div className="text-xs text-gray-500">Entry (TODO)</div>
                                         </div>
                                         <div className="text-center p-4 rounded-xl bg-white/5">
                                             <Users className="w-5 h-5 text-blue-500 mx-auto mb-2" />
@@ -359,7 +359,7 @@ export default function CreateMatch() {
                                         <div className="flex justify-between items-center">
                                             <span className="text-gray-300">Total Prize Pool</span>
                                             <span className="text-2xl font-bold gradient-text">
-                                                {prizePool.toFixed(4)} ETH
+                                                {prizePool.toFixed(0)} TODO
                                             </span>
                                         </div>
                                     </div>
