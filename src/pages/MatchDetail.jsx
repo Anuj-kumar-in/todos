@@ -721,11 +721,27 @@ export default function MatchDetail() {
                                         <motion.div
                                             initial={{ opacity: 0, scale: 0.9 }}
                                             animate={{ opacity: 1, scale: 1 }}
-                                            className="p-4 rounded-xl bg-gradient-to-br from-green-500/20 to-emerald-500/10 border border-green-500/30 text-center"
+                                            className="p-4 rounded-xl bg-gradient-to-br from-green-500/20 to-emerald-500/10 border border-green-500/30"
                                         >
-                                            <Trophy className="w-8 h-8 text-yellow-400 mx-auto mb-2" />
-                                            <p className="text-green-400 font-bold">Match Completed!</p>
-                                            <p className="text-gray-400 text-sm mt-1">Rewards have been distributed</p>
+                                            <div className="flex items-center gap-2 mb-3">
+                                                <Trophy className="w-5 h-5 text-yellow-400" />
+                                                <span className="text-white font-bold">Match Completed</span>
+                                            </div>
+                                            {finalWinners && finalWinners.length > 0 ? (
+                                                <div className="space-y-2">
+                                                    <p className="text-sm text-gray-400">Winners:</p>
+                                                    {finalWinners.map((winner, idx) => (
+                                                        <div key={winner} className="flex items-center gap-2 p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+                                                            <Award className="w-4 h-4 text-yellow-400" />
+                                                            <span className="text-yellow-300 font-medium">{formatAddress(winner)}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <div className="text-center">
+                                                    <p className="text-gray-400 text-sm">Rewards have been distributed</p>
+                                                </div>
+                                            )}
                                         </motion.div>
                                     )}
                                 </>

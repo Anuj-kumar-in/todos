@@ -204,7 +204,10 @@ export function useTodosArenaContract() {
       const contract = getContract()
       const tx = await contract.finalizeVoting(matchId)
       await tx.wait()
-      toast.success('Voting finalized!')
+      // After finalizing voting, complete the match
+      const tx2 = await contract.completeMatch(matchId)
+      await tx2.wait()
+      toast.success('Voting finalized and match completed!')
       refetchMatches()
     } catch (error) {
       console.error('Finalize voting error:', error)
