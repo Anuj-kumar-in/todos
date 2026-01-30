@@ -2,6 +2,29 @@
 
 A decentralized sports/games management platform with AI-powered verification, community voting, and blockchain-secured token rewards.
 
+## About the Project
+
+### Inspiration
+When I saw kids in this generation only playing video games, which often makes them lonely, I felt inspired to create **TodosArena**. My goal was to build a platform where they can play *any* type of game together—whether it's physical sports like basketball or digital e-sports—fostering connection and community. I wanted to use technology not to isolate, but to bring people together through shared competitive experiences.
+
+### What it does
+TodosArena is a decentralized platform that gamifies both physical and digital activities. It allows users to create matches, stake tokens, and compete in various games. Winners are verified using **Gemini AI**, which analyzes camera feeds or screenshots, and the community can vote to ensure fairness. It bridges the gap between real-world activities and on-chain rewards.
+
+### How we built it
+We built TodosArena using a modern **React** frontend with **TailwindCSS** for a sleek, responsive design. For the blockchain layer, we wrote **Solidity** smart contracts and deployed them across **multiple EVM chains** (Sepolia, Arbitrum, Base, etc.) using a custom **Relayer** architecture. This ensures users across different networks can participate seamlessly. We integrated **Google's Gemini AI** to act as an intelligent oracle, processing image data to determine match outcomes accurately.
+
+### Challenges we ran into
+Integrating real-world verification with blockchain was a significant challenge. We had to carefully tune the AI prompts to accurately detect winners from various image angles and lighting conditions. Additionally, handling **cross-chain state synchronization**—ensuring that a user staking on Arbitrum is correctly registered for a match on Sepolia—required designing a robust event-driven backend listener and Relayer system.
+
+### Accomplishments that we're proud of
+We are proud of successfully creating a verification system that can judge interactions in both the physical and digital worlds. Deploying our contracts to **over 10 testnets** and managing the architecture to support them all was a major technical feat. We also successfully implemented a **User Registration** system that rewards new players with tokens, lowering the barrier to entry.
+
+### What we learned
+We learned the immense potential of combining **AI Agents** with **Web3**. AI effectively solves the specific "Oracle Problem" of verifying unstructured real-world data (like a photo of a chessboard). We also gained deep insights into **account abstraction** concepts by building our Relayer system, which simplifies the crypto experience for end-users.
+
+### What's next for TodosArena
+We plan to expand the AI's capability to analyze **video feeds** in real-time for more complex sports. We also aim to integrate a **DAO** structure so the community can vote on platform parameters. Developing a native mobile app is also on the roadmap to make capturing "proof of win" even easier for outdoor sports.
+
 ## Features
 
 - 🎮 **Multi-Game Support**: Supports online games, outdoor athletics, and indoor sports.

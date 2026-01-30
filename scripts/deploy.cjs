@@ -12,21 +12,16 @@ async function main() {
     let todosArenaAddress = null;
     let relayerAddress = null;
 
-    // Deploy Relayer on all networks
+    // Deploy TodosArena first (it's the token contract that Relayer needs)
+    todosArenaAddress = process.env.VITE_TODOS_ARENA_ADDRESS;
+
+    // Deploy Relayer with TodosArena address as the token
     console.log("Deploying Relayer contract...");
     const Relayer = await hre.ethers.getContractFactory("Relayer");
-    const relayer = await Relayer.deploy(deployer.address, deployer.address);
+    const relayer = await Relayer.deploy(deployer.address, deployer.address, todosArenaAddress);
     await relayer.waitForDeployment();
     relayerAddress = await relayer.getAddress();
     console.log("Relayer deployed at:", relayerAddress);
-
-    // Deploy TodosArena on all networks
-    console.log("Deploying TodosArena contract...");
-    const TodosArena = await hre.ethers.getContractFactory("TodosArena");
-    const todosArena = await TodosArena.deploy();
-    await todosArena.waitForDeployment();
-    todosArenaAddress = await todosArena.getAddress();
-    console.log("TodosArena deployed at:", todosArenaAddress);
 
     console.log("🎉 Deployment completed!");
     console.log("Contract Addresses:");

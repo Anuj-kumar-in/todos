@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion'
 import { ConnectButton } from '@rainbow-me/rainbowkit'
+import { useAccount } from 'wagmi'
 import {
     Zap,
     Shield,
@@ -11,9 +12,11 @@ import {
     Sparkles,
     Bot,
     Vote,
-    Coins
+    Coins,
+    Wallet
 } from 'lucide-react'
 import Button from '../components/ui/Button'
+import { useRelayerContract } from '../hooks/useRelayerContract'
 
 const features = [
     {
@@ -150,6 +153,9 @@ export default function Home() {
     const mouseX = useMotionValue(0.5)
     const mouseY = useMotionValue(0.5)
 
+    const { isConnected, address } = useAccount()
+    const { userBalanceFormatted, isUserRegistered, registerUser, isRegistering } = useRelayerContract()
+
     useEffect(() => {
         const handleMouseMove = (e) => {
             if (!heroRef.current) return
@@ -259,7 +265,7 @@ export default function Home() {
                             </Link>
                         </motion.div>
 
-                        {/* Connect Wallet CTA */}
+                        {/* Connect Wallet & TODO Balance Section */}
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
@@ -267,7 +273,47 @@ export default function Home() {
                             className="mt-8"
                             style={{ transform: 'translateZ(40px)' }}
                         >
-                            <ConnectButton />
+                            {isConnected ? (
+                                <div className="flex flex-col items-center gap-4">
+                                    {/* TODO Balance Display */}
+                                    <motion.div
+                                        whileHover={{ scale: 1.05 }}
+                                        className="glass-card px-8 py-4 rounded-2xl border border-primary-500/30"
+                                    >
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary-500 to-purple-500 flex items-center justify-center">
+                                                <Wallet className="w-6 h-6 text-white" />
+                                            </div>
+                                            <div className="text-left">
+                                                <p className="text-xs text-gray-400 uppercase tracking-wider">Your TODO Balance</p>
+                                                <p className="text-2xl font-bold text-white">
+                                                    {isUserRegistered ? (
+                                                        <span className="gradient-text">{userBalanceFormatted.toLocaleString()} TODO</span>
+                                                    ) : (
+                                                        <span className="text-gray-500">Not Registered</span>
+                                                    )}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </motion.div>
+
+                                    {/* Register Button (if not registered) */}
+                                    {!isUserRegistered && (
+                                        <Button
+                                            onClick={registerUser}
+                                            loading={isRegistering}
+                                            icon={Sparkles}
+                                            variant="gradient"
+                                        >
+                                            Register & Get 100 FREE TODO
+                                        </Button>
+                                    )}
+
+                                    <ConnectButton />
+                                </div>
+                            ) : (
+                                <ConnectButton />
+                            )}
                         </motion.div>
                     </Hero3DCard>
                 </div>

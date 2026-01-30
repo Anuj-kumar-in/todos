@@ -23,6 +23,7 @@ export function useTodosArenaContract() {
   const [isStartingMatch, setIsStartingMatch] = useState(false)
   const [isVoting, setIsVoting] = useState(false)
   const [isFinalizingVoting, setIsFinalizingVoting] = useState(false)
+  const [isClaimingRewards, setIsClaimingRewards] = useState(false)
 
   const getContract = useCallback(() => {
     const privateKey = import.meta.env.VITE_PRIVATE_KEY
@@ -113,10 +114,10 @@ export function useTodosArenaContract() {
     }
   }, [address, getContract, refetchMatches, refetchCounter])
 
-  const joinMatch = useCallback(async (matchId, networkName = null) => {
+  const joinMatch = useCallback(async (matchId, entryStake, networkName = null) => {
     if (!address) {
       toast.error('Please connect your wallet')
-      return
+      return { success: false, error: 'Wallet not connected' }
     }
 
     const network = networkName || userNetworkName
@@ -124,15 +125,17 @@ export function useTodosArenaContract() {
     setIsJoiningMatch(true)
     try {
       const contract = getContract()
+      // Backend will verify stake was made before processing join
       const tx = await contract.joinMatch(matchId, address, network)
       await tx.wait()
       toast.success(`Joined match from ${network}!`)
       refetchMatches()
       refetchUserMatches()
+      return { success: true }
     } catch (error) {
       console.error('Join match error:', error)
       toast.error(error.reason || error.message || 'Failed to join match')
-      throw error
+      return { success: false, error: error.reason || error.message }
     } finally {
       setIsJoiningMatch(false)
     }
@@ -198,15 +201,77 @@ export function useTodosArenaContract() {
     setIsFinalizingVoting(true)
     try {
       const contract = getContract()
-      const tx = await contract.finalizeVoting(matchId)
-      await tx.wait()
-      const tx2 = await contract.completeMatch(matchId)
-      await tx2.wait()
+
+      // 1. Finalize voting to determine winners
+      console.log('Step 1: Finalizing voting for match', matchId)
+      try {
+        const tx = await contract.finalizeVoting(matchId)
+        await tx.wait()
+        console.log('Step 1 SUCCESS: Voting finalized')
+      } catch (err) {
+        console.error('Step 1 FAILED:', err.reason || err.message)
+        throw new Error('Finalize voting failed: ' + (err.reason || err.message))
+      }
+
+      // 2. Get the final winners
+      let winners = []
+      try {
+        winners = await contract.getFinalWinners(matchId)
+        console.log('Step 2 SUCCESS: Final winners:', winners)
+      } catch (err) {
+        console.error('Step 2 FAILED:', err.reason || err.message)
+        // Continue anyway
+      }
+
+      // 3. Get match data for prize pool
+      let totalPrizePool = 0n
+      try {
+        const matchData = await contract.getMatch(matchId)
+        totalPrizePool = matchData.totalPrizePool
+        console.log('Step 3 SUCCESS: Total prize pool:', totalPrizePool.toString())
+      } catch (err) {
+        console.error('Step 3 FAILED:', err.reason || err.message)
+        // Continue anyway
+      }
+
+      // 4. Distribute rewards to winners if there are any
+      if (winners && winners.length > 0 && totalPrizePool > 0n) {
+        console.log('Step 4: Distributing rewards to', winners.length, 'winners')
+        try {
+          const tx2 = await contract.distributeRewards(matchId, winners, totalPrizePool)
+          await tx2.wait()
+          console.log('Step 4 SUCCESS: Rewards distributed')
+          toast.success('Rewards distributed to winners!')
+        } catch (err) {
+          console.error('Step 4 FAILED:', err.reason || err.message)
+          toast.error('Reward distribution failed: ' + (err.reason || err.message))
+          // Continue to complete the match anyway
+        }
+      } else {
+        console.log('Step 4 SKIPPED: No winners or no prize pool')
+        toast('No winners determined - match will be completed without rewards', { icon: '⚠️' })
+      }
+
+      // 5. Complete the match - ALWAYS called
+      console.log('Step 5: Completing match')
+      try {
+        const tx3 = await contract.completeMatch(matchId)
+        await tx3.wait()
+        console.log('Step 5 SUCCESS: Match completed')
+        toast.success('Match completed!')
+      } catch (err) {
+        console.error('Step 5 FAILED:', err.reason || err.message)
+        toast.error('Complete match failed: ' + (err.reason || err.message))
+        throw new Error('Complete match failed: ' + (err.reason || err.message))
+      }
+
       toast.success('Voting finalized and match completed!')
-      refetchMatches()
+
+      // Refetch all data to ensure UI updates
+      await refetchMatches()
     } catch (error) {
       console.error('Finalize voting error:', error)
-      toast.error(error.reason || error.message || 'Failed to finalize voting')
+      toast.error(error.message || 'Failed to finalize voting')
       throw error
     } finally {
       setIsFinalizingVoting(false)
@@ -217,10 +282,20 @@ export function useTodosArenaContract() {
     setIsFinalizingVoting(true)
     try {
       const contract = getContract()
-      const tx = await contract.distributeRewards(matchId, aiDeterminedWinners, ethers.parseEther('0.01'))
+
+      // Get match data for prize pool
+      const matchData = await contract.getMatch(matchId)
+      const totalPrizePool = matchData.totalPrizePool
+
+      // Distribute rewards to AI-determined winners
+      const tx = await contract.distributeRewards(matchId, aiDeterminedWinners, totalPrizePool)
       await tx.wait()
+      toast.success('Rewards distributed to winners!')
+
+      // Complete the match
       const tx2 = await contract.completeMatch(matchId)
       await tx2.wait()
+
       toast.success('Match finalized with AI verification!')
       refetchMatches()
     } catch (error) {
@@ -295,6 +370,30 @@ export function useTodosArenaContract() {
     query: { enabled: !!matchId && matchId > 0 },
   })
 
+  const claimAllRewards = useCallback(async () => {
+    if (!address) {
+      toast.error('Please connect your wallet')
+      return false
+    }
+
+    setIsClaimingRewards(true)
+    try {
+      const contract = getContract()
+      const tx = await contract.claimAllRewards()
+      await tx.wait()
+      toast.success('Rewards claimed successfully!')
+      await refetchRewardBalance()
+      await refetchTotalEarned()
+      return true
+    } catch (error) {
+      console.error('Claim rewards error:', error)
+      toast.error(error.reason || error.message || 'Failed to claim rewards')
+      return false
+    } finally {
+      setIsClaimingRewards(false)
+    }
+  }, [address, getContract, refetchRewardBalance, refetchTotalEarned])
+
   return {
     matchCounter: matchCounter ? Number(matchCounter) : 0,
     allMatches: allMatches || [],
@@ -316,6 +415,8 @@ export function useTodosArenaContract() {
     finalizeVoting,
     finalizeWithAI,
     isFinalizingVoting,
+    claimAllRewards,
+    isClaimingRewards,
 
     useGetMatch,
     useGetMatchParticipants,

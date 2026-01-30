@@ -1,4 +1,4 @@
-import { useReadContract, useWriteContract, useAccount } from 'wagmi'
+import { useReadContract, useWriteContract, useAccount, useGasPrice } from 'wagmi'
 import { useState, useCallback } from 'react'
 import { CONTRACT_ADDRESSES, RELAYER_ABI } from '../config/contracts'
 import toast from 'react-hot-toast'
@@ -14,6 +14,9 @@ export function useRelayerContract() {
 
   const [isRegistering, setIsRegistering] = useState(false)
   const [isStaking, setIsStaking] = useState(false)
+
+  // Get current gas price for L2 networks with fluctuating fees
+  const { data: gasPrice } = useGasPrice()
 
   const { writeContractAsync: registerUserWrite } = useWriteContract()
   const { writeContractAsync: stakeForMatchWrite } = useWriteContract()
@@ -43,6 +46,17 @@ export function useRelayerContract() {
     query: { enabled: isRelayerAvailable },
   })
 
+  // Helper to get gas config with buffer for L2 networks
+  const getGasConfig = useCallback(() => {
+    if (!gasPrice) return {}
+    // Add 50% buffer to gas price for L2 networks with fluctuating base fees
+    const bufferedGasPrice = (gasPrice * 150n) / 100n
+    return {
+      maxFeePerGas: bufferedGasPrice,
+      maxPriorityFeePerGas: bufferedGasPrice / 10n, // 10% priority fee
+    }
+  }, [gasPrice])
+
   const registerUser = useCallback(async () => {
     if (!isRelayerAvailable) {
       toast.error('Relayer not available on this network')
@@ -60,6 +74,7 @@ export function useRelayerContract() {
         address: relayerAddress,
         abi: RELAYER_ABI,
         functionName: 'registerUser',
+        ...getGasConfig(),
       })
 
       toast.success('Registration successful! You received 100 TODO tokens!')
@@ -73,7 +88,7 @@ export function useRelayerContract() {
     } finally {
       setIsRegistering(false)
     }
-  }, [isRelayerAvailable, isUserRegistered, relayerAddress, registerUserWrite, refetchRegistration, refetchBalance])
+  }, [isRelayerAvailable, isUserRegistered, relayerAddress, registerUserWrite, refetchRegistration, refetchBalance, getGasConfig])
 
   const stakeForMatch = useCallback(async (matchId, amount) => {
     if (!isRelayerAvailable) {
@@ -100,6 +115,7 @@ export function useRelayerContract() {
         abi: RELAYER_ABI,
         functionName: 'stakeForMatch',
         args: [BigInt(matchId), amountBigInt],
+        ...getGasConfig(),
       })
 
       toast.success('Stake successful!')
@@ -112,7 +128,7 @@ export function useRelayerContract() {
     } finally {
       setIsStaking(false)
     }
-  }, [isRelayerAvailable, isUserRegistered, userBalance, relayerAddress, stakeForMatchWrite, refetchBalance])
+  }, [isRelayerAvailable, isUserRegistered, userBalance, relayerAddress, stakeForMatchWrite, refetchBalance, getGasConfig])
 
   const depositTokens = useCallback(async (amount) => {
     if (!isRelayerAvailable) {
@@ -126,6 +142,7 @@ export function useRelayerContract() {
         abi: RELAYER_ABI,
         functionName: 'depositTokens',
         args: [BigInt(amount)],
+        ...getGasConfig(),
       })
 
       toast.success('Deposit successful!')
@@ -136,7 +153,7 @@ export function useRelayerContract() {
       toast.error(error.shortMessage || error.message || 'Failed to deposit')
       return false
     }
-  }, [isRelayerAvailable, relayerAddress, depositTokensWrite, refetchBalance])
+  }, [isRelayerAvailable, relayerAddress, depositTokensWrite, refetchBalance, getGasConfig])
 
   const withdrawTokens = useCallback(async (amount) => {
     if (!isRelayerAvailable) {
@@ -150,6 +167,7 @@ export function useRelayerContract() {
         abi: RELAYER_ABI,
         functionName: 'withdrawTokens',
         args: [BigInt(amount)],
+        ...getGasConfig(),
       })
 
       toast.success('Withdrawal successful!')
@@ -160,7 +178,7 @@ export function useRelayerContract() {
       toast.error(error.shortMessage || error.message || 'Failed to withdraw')
       return false
     }
-  }, [isRelayerAvailable, relayerAddress, withdrawTokensWrite, refetchBalance])
+  }, [isRelayerAvailable, relayerAddress, withdrawTokensWrite, refetchBalance, getGasConfig])
 
   return {
     relayerAddress,

@@ -127,6 +127,8 @@ export default function MatchDetail() {
             setFinalizationAttempted(true)
             try {
                 await finalizeVoting(matchId)
+                // Wait for blockchain to update
+                await new Promise(resolve => setTimeout(resolve, 3000))
                 await refetchVotingSession()
                 await refetchFinalWinners()
                 await refetchMatch()
@@ -304,18 +306,38 @@ export default function MatchDetail() {
                 return
             }
 
-            // 2. Stake
+            // 2. Stake FIRST - this must succeed before joining
+            toast.loading('Staking tokens...', { id: 'stake-toast' })
             const staked = await stakeForMatch(matchId, stakeAmount)
-            if (!staked) return
 
-            // 3. Join Match
-            await joinMatch(matchId)
+            if (!staked) {
+                toast.dismiss('stake-toast')
+                toast.error('Failed to stake tokens. Match join aborted.')
+                return
+            }
+
+            toast.dismiss('stake-toast')
+            toast.success('Tokens staked successfully!')
+
+            // 3. Join Match - only after stake is confirmed
+            toast.loading('Joining match...', { id: 'join-toast' })
+            const joinResult = await joinMatch(matchId, stakeAmount)
+            toast.dismiss('join-toast')
+
+            if (!joinResult.success) {
+                // Stake was made but join failed - user needs refund
+                toast.error('Match join failed after staking. Please contact support for a refund.')
+                return
+            }
+
             setTimeout(async () => {
                 await Promise.all([refetchMatch(), refetchParticipants()])
                 toast.success('Successfully joined the match!')
             }, 3000)
         } catch (error) {
             console.error(error)
+            toast.dismiss('stake-toast')
+            toast.dismiss('join-toast')
             toast.error('Failed to join match')
         }
     }
@@ -614,8 +636,10 @@ export default function MatchDetail() {
                                                         onClick={async () => {
                                                             try {
                                                                 await finalizeVoting(matchId)
+                                                                // Wait for blockchain to update
+                                                                await new Promise(resolve => setTimeout(resolve, 3000))
                                                                 await Promise.all([refetchVotingSession(), refetchFinalWinners(), refetchMatch()])
-                                                                toast.success('Results declared!')
+                                                                toast.success('Results declared and match completed!')
                                                             } catch (error) {
                                                                 console.error('Finalize error:', error)
                                                                 toast.error(error.reason || 'Failed to declare results')
