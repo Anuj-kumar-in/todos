@@ -2,6 +2,8 @@
 
 A decentralized sports/games management platform with AI-powered verification, community voting, and blockchain-secured token rewards.
 
+- [Pitch Deck](https://drive.google.com/file/d/1nn3B5gv7LvjvULJH2z82NM11qAOSkc3k/view?usp=sharing)
+
 ## About the Project
 
 ### Inspiration
@@ -28,7 +30,7 @@ We plan to expand the AI's capability to analyze **video feeds** in real-time fo
 ## Features
 
 - 🎮 **Multi-Game Support**: Supports online games, outdoor athletics, and indoor sports.
-- 🤖 **AI Verification**: Uses  AI to detect winners via camera or screenshot proof.
+- 🤖 **AI Verification**: Uses Gemini AI to detect winners via camera or screenshot proof.
 - 🗳️ **Community Voting**: All players can vote on results to ensure transparency.
 - 🪙 **Token Rewards**: Winners receive crypto on the blockchain as rewards.
 - 📍 **Location-Based**: Find and join outdoor games near your location.
@@ -114,7 +116,7 @@ The platform uses two main smart contracts:
   - Stake recording for cross-chain participation
   - Admin verification of stakes
   - Message execution tracking
-- **Networks**: Currently deployed on Sepolia, Arbitrum Sepolia, Linea Sepolia, Polygon Amoy, Base Sepolia, Blast Sepolia, Optimism Sepolia, ZKSync Sepolia, BSC Testnet, Scroll Sepolia, and OPBNB Testnet
+- **Networks**: Currently deployed on Sepolia, Arbitrum Sepolia, Linea Sepolia, Polygon Amoy, Base Sepolia, Blast Sepolia, Optimism Sepolia, ZKSync Sepolia, BSC Testnet, Scroll Sepolia, OPBNB Testnet, Avalanche Fuji, Mantle Sepolia, and Celo.
 
 #### TodosArena Contract
 - **Purpose**: Main contract deployed on primary network (Ethereum Sepolia for testing)
@@ -154,7 +156,9 @@ Copy `.env.example` to `.env` and fill in the following variables:
 
 - `PRIVATE_KEY`: Your wallet private key for deployment.
 - `VITE_WALLETCONNECT_PROJECT_ID`: Obtain this from WalletConnect Cloud.
-- `GEMINI_API_KEY`: Required for AI detection features.
+- `VITE_GEMINI_API_KEY`: Required for AI detection features.
+- `VITE_*_RELAYER_ADDRESS`: Addresses for deployed Relayer contracts on each network (update after deployment).
+- `VITE_TODOS_ARENA_ADDRESS`: Address of the main TodosArena contract.
 
 ## Tech Stack
 
@@ -167,7 +171,7 @@ Copy `.env.example` to `.env` and fill in the following variables:
 
 ```
 ├── contracts/          # Solidity smart contracts
-├── scripts/            # Deployment scripts
+├── scripts/            # Deployment scripts (deploy.cjs)
 ├── src/
 │   ├── components/     # React components
 │   ├── pages/          # Route pages
@@ -182,6 +186,8 @@ Copy `.env.example` to `.env` and fill in the following variables:
 2. **Join a Match**: Browse available matches and join one.
 3. **Submit Proof**: Upload a screenshot or use the camera to submit proof of your win.
 4. **Vote**: Participate in community voting to verify results.
-5. **Claim Rewards**: Winners can claim Crypto.
+5. **Claim Rewards**: Winners receive TODO tokens automatically.
 
+## License
 
+This project is licensed under the MIT License.

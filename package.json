@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "compile": "hardhat compile",
     "test": "hardhat test",
-    "deploy": "hardhat run scripts/deploy.js"
+    "deploy": "hardhat run scripts/deploy.cjs"
   },
   "dependencies": {
     "@rainbow-me/rainbowkit": "^2.1.2",
