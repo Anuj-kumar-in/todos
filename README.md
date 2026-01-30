@@ -3,6 +3,7 @@
 A decentralized sports/games management platform with AI-powered verification, community voting, and blockchain-secured token rewards.
 
 - [Pitch Deck](https://drive.google.com/file/d/1nn3B5gv7LvjvULJH2z82NM11qAOSkc3k/view?usp=sharing)
+- [Live Demo](https://todoarena.vercel.app/)
 
 ## About the Project
 
