@@ -21,7 +21,7 @@ import {
     scrollSepolia,
     linea,
     lineaSepolia
-    } from 'wagmi/chains'
+} from 'wagmi/chains'
 
 
 
@@ -32,26 +32,26 @@ export const config = getDefaultConfig({
     projectId: projectId,
     chains: [sepolia, mainnet, hardhat, arbitrumSepolia, linea, lineaSepolia, polygon, polygonAmoy, base, baseSepolia, optimism, optimismSepolia, arbitrum, avalanche, avalancheFuji, celo, bsc, bscTestnet, scroll, scrollSepolia],
     transports: {
-    [sepolia.id]: http(import.meta.env.SEPOLIA_RPC_URL),
-    [mainnet.id]: http(import.meta.env.MAINNET_RPC_URL),
-    [hardhat.id]: http('http://127.0.0.1:8545'),
-    [arbitrum.id]: http(import.meta.env.ARBITRUM_RPC_URL),
-    [arbitrumSepolia.id]: http(import.meta.env.ARBITRUM_SEPOLIA_RPC_URL),
-    [optimism.id]: http(import.meta.env.OPTIMISM_RPC_URL),
-    [optimismSepolia.id]: http(import.meta.env.OPTIMISM_SEPOLIA_RPC_URL),
-    [polygon.id]: http(import.meta.env.POLYGON_RPC_URL),
-    [polygonAmoy.id]: http(import.meta.env.POLYGON_AMOY_RPC_URL),
-    [base.id]: http(import.meta.env.BASE_RPC_URL),
-    [baseSepolia.id]: http(import.meta.env.BASE_SEPOLIA_RPC_URL),
-    [avalanche.id]: http(import.meta.env.AVALANCHE_RPC_URL),
-    [avalancheFuji.id]: http(import.meta.env.AVALANCHE_FUJI_RPC_URL),
-    [bsc.id]: http(import.meta.env.BSC_RPC_URL),
-    [bscTestnet.id]: http(import.meta.env.BSC_TESTNET_RPC_URL),
-    [celo.id]: http(import.meta.env.CELO_RPC_URL),
-    [scroll.id]: http(import.meta.env.SCROLL_RPC_URL),
-    [scrollSepolia.id]: http(import.meta.env.SCROLL_SEPOLIA_RPC_URL),
-    [linea.id]: http(import.meta.env.LINEA_RPC_URL),
-    [lineaSepolia.id]: http(import.meta.env.LINEA_SEPOLIA_RPC_URL),
+        [sepolia.id]: http(import.meta.env.SEPOLIA_RPC_URL),
+        [mainnet.id]: http(import.meta.env.MAINNET_RPC_URL),
+        [hardhat.id]: http('http://127.0.0.1:8545'),
+        [arbitrum.id]: http(import.meta.env.ARBITRUM_RPC_URL),
+        [arbitrumSepolia.id]: http(import.meta.env.ARBITRUM_SEPOLIA_RPC_URL),
+        [optimism.id]: http(import.meta.env.OPTIMISM_RPC_URL),
+        [optimismSepolia.id]: http(import.meta.env.OPTIMISM_SEPOLIA_RPC_URL),
+        [polygon.id]: http(import.meta.env.POLYGON_RPC_URL),
+        [polygonAmoy.id]: http(import.meta.env.POLYGON_AMOY_RPC_URL),
+        [base.id]: http(import.meta.env.BASE_RPC_URL),
+        [baseSepolia.id]: http(import.meta.env.BASE_SEPOLIA_RPC_URL),
+        [avalanche.id]: http(import.meta.env.AVALANCHE_RPC_URL),
+        [avalancheFuji.id]: http(import.meta.env.AVALANCHE_FUJI_RPC_URL),
+        [bsc.id]: http(import.meta.env.BSC_RPC_URL),
+        [bscTestnet.id]: http(import.meta.env.BSC_TESTNET_RPC_URL),
+        [celo.id]: http(import.meta.env.CELO_RPC_URL),
+        [scroll.id]: http(import.meta.env.SCROLL_RPC_URL),
+        [scrollSepolia.id]: http(import.meta.env.SCROLL_SEPOLIA_RPC_URL),
+        [linea.id]: http(import.meta.env.LINEA_RPC_URL),
+        [lineaSepolia.id]: http(import.meta.env.LINEA_SEPOLIA_RPC_URL),
     },
 
     ssr: true, // Enable SSR
@@ -209,7 +209,7 @@ export const getContractAddresses = (chainId) => {
     return addresses[chainId] || addresses[11155111]
 }
 
-    export const supportedChains = [
+export const supportedChains = [
     { id: sepolia.id, name: 'Sepolia Testnet', icon: '🔷', isTestnet: true },
     { id: mainnet.id, name: 'Ethereum Mainnet', icon: '⟠', isTestnet: false },
     { id: arbitrumSepolia.id, name: 'Arbitrum Sepolia', icon: '🔶', isTestnet: true },
@@ -229,5 +229,5 @@ export const getContractAddresses = (chainId) => {
     { id: scroll.id, name: 'Scroll Mainnet', icon: '🔵', isTestnet: false },
     { id: lineaSepolia.id, name: 'Linea Sepolia', icon: '🟡', isTestnet: true },
     { id: linea.id, name: 'Linea Mainnet', icon: '🟢', isTestnet: false },
-    ]
+]
 

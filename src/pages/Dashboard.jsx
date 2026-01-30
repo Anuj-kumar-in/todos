@@ -130,7 +130,7 @@ export default function Dashboard() {
                                         </div>
                                         <div className="flex items-center gap-4">
                                             <div className="text-right">
-                                                <div className="text-white font-medium">{parseFloat(formatEther(match.totalPrizePool || 0n)).toFixed(3)} ETH</div>
+                                                <div className="text-white font-medium">{parseFloat(formatEther(match.totalPrizePool || 0n)).toFixed(0)} TODO</div>
                                                 <div className="text-xs text-gray-500">Prize Pool</div>
                                             </div>
                                             <MatchStatusBadge status={Number(match.status)} />

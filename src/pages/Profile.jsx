@@ -8,13 +8,15 @@ import Card, { CardContent, CardHeader, CardTitle } from '../components/ui/Card'
 import { MatchStatusBadge } from '../components/ui/Badge'
 import { GAME_TYPE_ICONS, GAME_TYPE_NAMES } from '../config/contracts'
 import { useTodosArenaContract } from '../hooks/useTodosArenaContract'
+import { useRelayerContract } from '../hooks/useRelayerContract'
 import { Loader } from '../components/ui/Loader'
 import { formatEther } from 'viem'
 import toast from 'react-hot-toast'
 
 export default function Profile() {
-    const { address, isConnected } = useAccount()
+    const { address, isConnected, chain } = useAccount()
     const { allMatches, userMatches, isLoadingMatches, refetchMatches, refetchUserMatches, totalEarned, rewardBalance, claimAllRewards, isClaimingRewards, refetchRewardBalance, refetchTotalEarned } = useTodosArenaContract()
+    const { userBalanceFormatted, refetchBalance } = useRelayerContract()
 
     useEffect(() => {
         if (isConnected) {
@@ -109,7 +111,7 @@ export default function Profile() {
                         </div>
                         <div className="flex gap-6">
                             <div className="text-center">
-                                <div className="text-2xl font-bold gradient-text">{parseFloat(totalEarned).toFixed(0)}</div>
+                                <div className="text-2xl font-bold gradient-text">{userBalanceFormatted}</div>
                                 <div className="text-sm text-gray-500">TODO Balance</div>
                             </div>
                         </div>
@@ -161,7 +163,7 @@ export default function Profile() {
                                             </div>
                                             <div className="flex items-center gap-3">
                                                 <div className="text-right">
-                                                    <div className="text-white">{parseFloat(formatEther(match.totalPrizePool || 0n)).toFixed(3)} ETH</div>
+                                                    <div className="text-white">{parseFloat(formatEther(match.totalPrizePool || 0n)).toFixed(0)} TODO</div>
                                                     <div className="text-xs text-gray-500">Prize Pool</div>
                                                 </div>
                                                 <MatchStatusBadge status={Number(match.status)} />
@@ -181,7 +183,7 @@ export default function Profile() {
                     <Card gradient glow>
                         <CardHeader><CardTitle className="flex items-center gap-2"><Coins className="w-5 h-5 text-yellow-500" />TODO Balance</CardTitle></CardHeader>
                         <CardContent>
-                            <div className="text-4xl font-bold text-white mb-2">{parseFloat(totalEarned).toFixed(2)}</div>
+                            <div className="text-4xl font-bold text-white mb-2">{userBalanceFormatted}</div>
                             <div className="text-sm text-gray-400 mb-4">TODO Tokens</div>
                             {parseFloat(rewardBalance) > 0 && (
                                 <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/20 mb-4">
@@ -199,11 +201,11 @@ export default function Profile() {
                         <CardContent className="space-y-3">
                             <div className="flex justify-between p-3 rounded-xl bg-white/5">
                                 <span className="text-gray-400">Network</span>
-                                <span className="text-white">Hardhat Local</span>
+                                <span className="text-white">{chain?.name || 'Unknown'}</span>
                             </div>
                             <div className="flex justify-between p-3 rounded-xl bg-white/5">
                                 <span className="text-gray-400">Chain ID</span>
-                                <span className="text-white">31337</span>
+                                <span className="text-white">{chain?.id || 'N/A'}</span>
                             </div>
                         </CardContent>
                     </Card>

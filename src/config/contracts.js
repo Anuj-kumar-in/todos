@@ -2198,7 +2198,7 @@ export const RELAYER_ABI = [
     "inputs": [
       { "internalType": "address", "name": "_deployer", "type": "address" },
       { "internalType": "address", "name": "_backend", "type": "address" },
-      { "internalType": "address", "name": "_todoToken", "type": "address" }
+      { "internalType": "address", "name": "", "type": "address" }
     ],
     "stateMutability": "nonpayable",
     "type": "constructor"
@@ -2261,21 +2261,24 @@ export const RELAYER_ABI = [
   {
     "anonymous": false,
     "inputs": [
-      { "indexed": true, "internalType": "address", "name": "user", "type": "address" },
-      { "indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256" },
+      { "indexed": true, "internalType": "uint256", "name": "matchId", "type": "uint256" },
+      { "indexed": false, "internalType": "address[]", "name": "winners", "type": "address[]" },
+      { "indexed": false, "internalType": "uint256", "name": "totalReward", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "rewardPerWinner", "type": "uint256" },
       { "indexed": false, "internalType": "uint256", "name": "timestamp", "type": "uint256" }
     ],
-    "name": "TokensDeposited",
+    "name": "MatchRewardsDistributed",
     "type": "event"
   },
   {
     "anonymous": false,
     "inputs": [
+      { "indexed": true, "internalType": "uint256", "name": "matchId", "type": "uint256" },
       { "indexed": true, "internalType": "address", "name": "user", "type": "address" },
       { "indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256" },
       { "indexed": false, "internalType": "uint256", "name": "timestamp", "type": "uint256" }
     ],
-    "name": "TokensWithdrawn",
+    "name": "StakeRefunded",
     "type": "event"
   },
   {
@@ -2308,14 +2311,21 @@ export const RELAYER_ABI = [
   },
   {
     "inputs": [],
-    "name": "todoToken",
-    "outputs": [{ "internalType": "contract IERC20", "name": "", "type": "address" }],
+    "name": "totalUsersRegistered",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
     "stateMutability": "view",
     "type": "function"
   },
   {
     "inputs": [],
-    "name": "totalUsersRegistered",
+    "name": "totalStakedAmount",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "totalVirtualBalance",
     "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
     "stateMutability": "view",
     "type": "function"
@@ -2352,15 +2362,38 @@ export const RELAYER_ABI = [
     "type": "function"
   },
   {
-    "inputs": [{ "internalType": "uint256", "name": "_amount", "type": "uint256" }],
-    "name": "depositTokens",
+    "inputs": [
+      { "internalType": "uint256", "name": "_matchId", "type": "uint256" },
+      { "internalType": "address", "name": "_user", "type": "address" }
+    ],
+    "name": "getUserMatchStake",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "uint256", "name": "_matchId", "type": "uint256" }],
+    "name": "getMatchStakePool",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "_matchId", "type": "uint256" },
+      { "internalType": "address[]", "name": "_winners", "type": "address[]" }
+    ],
+    "name": "distributeMatchRewards",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
   },
   {
-    "inputs": [{ "internalType": "uint256", "name": "_amount", "type": "uint256" }],
-    "name": "withdrawTokens",
+    "inputs": [
+      { "internalType": "uint256", "name": "_matchId", "type": "uint256" },
+      { "internalType": "address[]", "name": "_participants", "type": "address[]" }
+    ],
+    "name": "refundMatchStakes",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -2371,6 +2404,16 @@ export const RELAYER_ABI = [
       { "internalType": "uint256", "name": "_amount", "type": "uint256" }
     ],
     "name": "addReward",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "_user", "type": "address" },
+      { "internalType": "uint256", "name": "_amount", "type": "uint256" }
+    ],
+    "name": "mintVirtualTokens",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -2434,6 +2477,17 @@ export const RELAYER_ABI = [
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "getPoolStats",
+    "outputs": [
+      { "internalType": "uint256", "name": "totalVirtual", "type": "uint256" },
+      { "internalType": "uint256", "name": "totalStaked", "type": "uint256" },
+      { "internalType": "uint256", "name": "totalUsers", "type": "uint256" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [{ "internalType": "address", "name": "_newBackend", "type": "address" }],
     "name": "setBackend",
     "outputs": [],
@@ -2443,20 +2497,6 @@ export const RELAYER_ABI = [
   {
     "inputs": [{ "internalType": "address", "name": "_newDeployer", "type": "address" }],
     "name": "setDeployer",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [{ "internalType": "address", "name": "_newToken", "type": "address" }],
-    "name": "setTodoToken",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [{ "internalType": "uint256", "name": "_amount", "type": "uint256" }],
-    "name": "withdrawContractTokens",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

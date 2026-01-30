@@ -20,8 +20,6 @@ export function useRelayerContract() {
 
   const { writeContractAsync: registerUserWrite } = useWriteContract()
   const { writeContractAsync: stakeForMatchWrite } = useWriteContract()
-  const { writeContractAsync: depositTokensWrite } = useWriteContract()
-  const { writeContractAsync: withdrawTokensWrite } = useWriteContract()
 
   const { data: isUserRegistered, refetch: refetchRegistration } = useReadContract({
     address: relayerAddress,
@@ -45,6 +43,15 @@ export function useRelayerContract() {
     functionName: 'deployer',
     query: { enabled: isRelayerAvailable },
   })
+
+  // Get pool stats (virtual-only mode)
+  const { data: poolStats, refetch: refetchPoolStats } = useReadContract({
+    address: relayerAddress,
+    abi: RELAYER_ABI,
+    functionName: 'getPoolStats',
+    query: { enabled: isRelayerAvailable },
+  })
+
 
   // Helper to get gas config with buffer for L2 networks
   const getGasConfig = useCallback(() => {
@@ -130,56 +137,6 @@ export function useRelayerContract() {
     }
   }, [isRelayerAvailable, isUserRegistered, userBalance, relayerAddress, stakeForMatchWrite, refetchBalance, getGasConfig])
 
-  const depositTokens = useCallback(async (amount) => {
-    if (!isRelayerAvailable) {
-      toast.error('Relayer not available')
-      return false
-    }
-
-    try {
-      const tx = await depositTokensWrite({
-        address: relayerAddress,
-        abi: RELAYER_ABI,
-        functionName: 'depositTokens',
-        args: [BigInt(amount)],
-        ...getGasConfig(),
-      })
-
-      toast.success('Deposit successful!')
-      await refetchBalance()
-      return true
-    } catch (error) {
-      console.error('Deposit error:', error)
-      toast.error(error.shortMessage || error.message || 'Failed to deposit')
-      return false
-    }
-  }, [isRelayerAvailable, relayerAddress, depositTokensWrite, refetchBalance, getGasConfig])
-
-  const withdrawTokens = useCallback(async (amount) => {
-    if (!isRelayerAvailable) {
-      toast.error('Relayer not available')
-      return false
-    }
-
-    try {
-      const tx = await withdrawTokensWrite({
-        address: relayerAddress,
-        abi: RELAYER_ABI,
-        functionName: 'withdrawTokens',
-        args: [BigInt(amount)],
-        ...getGasConfig(),
-      })
-
-      toast.success('Withdrawal successful!')
-      await refetchBalance()
-      return true
-    } catch (error) {
-      console.error('Withdraw error:', error)
-      toast.error(error.shortMessage || error.message || 'Failed to withdraw')
-      return false
-    }
-  }, [isRelayerAvailable, relayerAddress, withdrawTokensWrite, refetchBalance, getGasConfig])
-
   return {
     relayerAddress,
     isRelayerAvailable,
@@ -188,16 +145,24 @@ export function useRelayerContract() {
     userBalanceFormatted: userBalance ? Number(userBalance / 10n ** 18n) : 0,
     deployerAddress,
     currentChainId: chainId,
+    // Pool stats (virtual-only mode)
+    poolStats: poolStats ? {
+      totalVirtualBalance: poolStats[0] || 0n,
+      totalStaked: poolStats[1] || 0n,
+      totalUsers: Number(poolStats[2] || 0),
+    } : null,
+    refetchPoolStats,
+    // Actions
     registerUser,
     isRegistering,
     stakeForMatch,
     isStaking,
-    depositTokens,
-    withdrawTokens,
     refetchBalance,
     refetchRegistration,
     NEW_USER_BONUS,
   }
+
 }
 
 export default useRelayerContract
+

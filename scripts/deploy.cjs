@@ -15,10 +15,11 @@ async function main() {
     // Deploy TodosArena first (it's the token contract that Relayer needs)
     todosArenaAddress = process.env.VITE_TODOS_ARENA_ADDRESS;
 
-    // Deploy Relayer with TodosArena address as the token
-    console.log("Deploying Relayer contract...");
+    // Deploy Relayer (virtual-only mode - no token needed)
+    console.log("Deploying Relayer contract (virtual-only mode)...");
     const Relayer = await hre.ethers.getContractFactory("Relayer");
-    const relayer = await Relayer.deploy(deployer.address, deployer.address, todosArenaAddress);
+    // Third param is unused in virtual mode, pass zero address for compatibility
+    const relayer = await Relayer.deploy(deployer.address, deployer.address, "0x0000000000000000000000000000000000000000");
     await relayer.waitForDeployment();
     relayerAddress = await relayer.getAddress();
     console.log("Relayer deployed at:", relayerAddress);

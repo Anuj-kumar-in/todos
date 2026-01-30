@@ -1,4 +1,4 @@
-import { useReadContract, useAccount } from 'wagmi'
+import { useReadContract, useWriteContract, useAccount } from 'wagmi'
 import { formatEther } from 'viem'
 import { useState, useCallback, useMemo } from 'react'
 import { ethers } from 'ethers'
@@ -370,6 +370,8 @@ export function useTodosArenaContract() {
     query: { enabled: !!matchId && matchId > 0 },
   })
 
+  const { writeContractAsync: claimAllRewardsWrite } = useWriteContract()
+
   const claimAllRewards = useCallback(async () => {
     if (!address) {
       toast.error('Please connect your wallet')
@@ -378,29 +380,37 @@ export function useTodosArenaContract() {
 
     setIsClaimingRewards(true)
     try {
-      const contract = getContract()
-      const tx = await contract.claimAllRewards()
-      await tx.wait()
+      // Must use user's wallet (via wagmi) to claim user's rewards
+      const tx = await claimAllRewardsWrite({
+        address: todoArenaAddress,
+        abi: TODO_ARENA_ABI,
+        functionName: 'claimAllRewards',
+        chainId: PRIMARY_CHAIN_ID,
+      })
+
       toast.success('Rewards claimed successfully!')
+      // Wait for indexing
+      await new Promise(r => setTimeout(r, 2000))
       await refetchRewardBalance()
       await refetchTotalEarned()
       return true
     } catch (error) {
       console.error('Claim rewards error:', error)
-      toast.error(error.reason || error.message || 'Failed to claim rewards')
+      toast.error(error.shortMessage || error.message || 'Failed to claim rewards')
       return false
     } finally {
       setIsClaimingRewards(false)
     }
-  }, [address, getContract, refetchRewardBalance, refetchTotalEarned])
+  }, [address, claimAllRewardsWrite, todoArenaAddress, refetchRewardBalance, refetchTotalEarned])
 
   return {
     matchCounter: matchCounter ? Number(matchCounter) : 0,
     allMatches: allMatches || [],
     userMatches: userMatches || [],
     isLoadingMatches,
-    rewardBalance: rewardBalance ? formatEther(rewardBalance) : '0',
-    totalEarned: totalEarned ? formatEther(totalEarned) : '0',
+    // Rewards in contract are stored after division by 10^15, so we divide by 10^3 to get TODO amount
+    rewardBalance: rewardBalance ? (Number(rewardBalance) / 1000).toFixed(2) : '0',
+    totalEarned: totalEarned ? (Number(totalEarned) / 1000).toFixed(2) : '0',
 
     createMatch,
     isCreatingMatch,

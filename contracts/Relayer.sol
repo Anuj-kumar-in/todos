@@ -1,18 +1,29 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
+/**
+ * @title Relayer
+ * @dev Manages user virtual balances, staking, and rewards on L2 networks
+ * Works in VIRTUAL-ONLY mode - no actual token transfers required
+ * Each network has its own Relayer with independent virtual balances
+ */
 contract Relayer is ReentrancyGuard {
-    using SafeERC20 for IERC20;
     
     address public deployer;
     address public backend;
-    IERC20 public todoToken;
     
     uint256 public constant NEW_USER_BONUS = 100 * 10**18;
+    
+    // Virtual balance tracking
+    uint256 public totalStakedAmount;      // Total tokens currently staked in matches
+    uint256 public totalVirtualBalance;    // Total of all user virtual balances
+    
+    // Match staking tracking
+    mapping(uint256 => uint256) public matchStakePool;          // matchId => total staked for this match
+    mapping(uint256 => mapping(address => uint256)) public userMatchStake; // matchId => user => stake amount
+    mapping(uint256 => bool) public matchStakeDistributed;      // matchId => whether stakes have been distributed
     
     enum ActionType {
         CREATE_MATCH,
@@ -36,11 +47,12 @@ contract Relayer is ReentrancyGuard {
     mapping(uint256 => UserAction) public actions;
     mapping(address => uint256[]) public userActions;
     mapping(address => bool) public registeredUsers;
-    mapping(address => uint256) public userTodoBalance;
+    mapping(address => uint256) public userTodoBalance;  // Virtual balance
     
     uint256 public actionCounter;
     uint256 public totalUsersRegistered;
     
+    // Events
     event ActionSubmitted(
         uint256 indexed actionId,
         address indexed user,
@@ -76,25 +88,29 @@ contract Relayer is ReentrancyGuard {
         uint256 timestamp
     );
     
-    event TokensDeposited(
+    event MatchRewardsDistributed(
+        uint256 indexed matchId,
+        address[] winners,
+        uint256 totalReward,
+        uint256 rewardPerWinner,
+        uint256 timestamp
+    );
+    
+    event StakeRefunded(
+        uint256 indexed matchId,
         address indexed user,
         uint256 amount,
         uint256 timestamp
     );
     
-    event TokensWithdrawn(
-        address indexed user,
-        uint256 amount,
-        uint256 timestamp
-    );
-    
+    // Modifiers
     modifier onlyDeployer() {
         require(msg.sender == deployer, "Only deployer can call this");
         _;
     }
     
     modifier onlyBackend() {
-        require(msg.sender == backend, "Only backend can call this");
+        require(msg.sender == backend || msg.sender == deployer, "Only backend/deployer can call this");
         _;
     }
     
@@ -103,23 +119,135 @@ contract Relayer is ReentrancyGuard {
         _;
     }
     
-    constructor(address _deployer, address _backend, address _todoToken) {
+    constructor(address _deployer, address _backend, address /* _todoToken - unused in virtual mode */) {
         deployer = _deployer;
         backend = _backend;
-        todoToken = IERC20(_todoToken);
     }
     
+    // ==================== User Registration ====================
+    
+    /**
+     * @dev Register user and give them bonus virtual tokens
+     */
     function registerUser() external nonReentrant returns (bool) {
         require(!registeredUsers[msg.sender], "User already registered");
         
         registeredUsers[msg.sender] = true;
         userTodoBalance[msg.sender] = NEW_USER_BONUS;
+        totalVirtualBalance += NEW_USER_BONUS;
         totalUsersRegistered++;
         
         emit UserRegistered(msg.sender, NEW_USER_BONUS, block.timestamp, block.chainid);
         
         return true;
     }
+    
+    // ==================== Staking ====================
+    
+    /**
+     * @dev Stake virtual tokens for a match - deducts from user balance and adds to match pool
+     */
+    function stakeForMatch(uint256 _matchId, uint256 _amount) external onlyRegistered nonReentrant {
+        require(_amount > 0, "Stake amount must be positive");
+        require(userTodoBalance[msg.sender] >= _amount, "Insufficient TODO balance");
+        require(userMatchStake[_matchId][msg.sender] == 0, "Already staked for this match");
+        
+        // Deduct from user balance
+        userTodoBalance[msg.sender] -= _amount;
+        totalVirtualBalance -= _amount;
+        
+        // Add to match stake pool
+        matchStakePool[_matchId] += _amount;
+        userMatchStake[_matchId][msg.sender] = _amount;
+        totalStakedAmount += _amount;
+        
+        emit StakeReceived(msg.sender, _matchId, _amount, block.timestamp);
+    }
+    
+    /**
+     * @dev Get user's stake for a specific match
+     */
+    function getUserMatchStake(uint256 _matchId, address _user) external view returns (uint256) {
+        return userMatchStake[_matchId][_user];
+    }
+    
+    /**
+     * @dev Get total stake pool for a match
+     */
+    function getMatchStakePool(uint256 _matchId) external view returns (uint256) {
+        return matchStakePool[_matchId];
+    }
+    
+    // ==================== Reward Distribution ====================
+    
+    /**
+     * @dev Distribute match rewards to winners - called by backend/deployer after match ends
+     * Winners receive their share of the total stake pool
+     */
+    function distributeMatchRewards(
+        uint256 _matchId,
+        address[] calldata _winners
+    ) external onlyBackend nonReentrant {
+        require(!matchStakeDistributed[_matchId], "Rewards already distributed for this match");
+        require(_winners.length > 0, "Must have at least one winner");
+        require(matchStakePool[_matchId] > 0, "No stakes for this match");
+        
+        uint256 totalReward = matchStakePool[_matchId];
+        uint256 rewardPerWinner = totalReward / _winners.length;
+        
+        // Distribute to winners
+        for (uint256 i = 0; i < _winners.length; i++) {
+            require(registeredUsers[_winners[i]], "Winner not registered");
+            userTodoBalance[_winners[i]] += rewardPerWinner;
+            totalVirtualBalance += rewardPerWinner;
+        }
+        
+        // Mark as distributed and update tracking
+        matchStakeDistributed[_matchId] = true;
+        totalStakedAmount -= totalReward;
+        
+        emit MatchRewardsDistributed(_matchId, _winners, totalReward, rewardPerWinner, block.timestamp);
+    }
+    
+    /**
+     * @dev Refund stakes for a cancelled match
+     */
+    function refundMatchStakes(
+        uint256 _matchId,
+        address[] calldata _participants
+    ) external onlyBackend nonReentrant {
+        require(!matchStakeDistributed[_matchId], "Stakes already distributed");
+        
+        for (uint256 i = 0; i < _participants.length; i++) {
+            uint256 stakeAmount = userMatchStake[_matchId][_participants[i]];
+            if (stakeAmount > 0) {
+                userTodoBalance[_participants[i]] += stakeAmount;
+                totalVirtualBalance += stakeAmount;
+                userMatchStake[_matchId][_participants[i]] = 0;
+                
+                emit StakeRefunded(_matchId, _participants[i], stakeAmount, block.timestamp);
+            }
+        }
+        
+        totalStakedAmount -= matchStakePool[_matchId];
+        matchStakePool[_matchId] = 0;
+        matchStakeDistributed[_matchId] = true;
+    }
+    
+    /**
+     * @dev Add reward to user (called by backend for bonus rewards, voting rewards, etc.)
+     */
+    function addReward(address _user, uint256 _amount) external onlyBackend {
+        require(_amount > 0, "Reward amount must be positive");
+        require(registeredUsers[_user], "User not registered");
+        
+        userTodoBalance[_user] += _amount;
+        totalVirtualBalance += _amount;
+        
+        emit RewardSent(_user, _amount, block.timestamp);
+    }
+    
+    // ==================== Action Tracking ====================
     
     function submitAction(
         ActionType _actionType,
@@ -153,34 +281,6 @@ contract Relayer is ReentrancyGuard {
         return actionId;
     }
     
-    function stakeForMatch(uint256 _matchId, uint256 _amount) external onlyRegistered nonReentrant {
-        require(_amount > 0, "Stake amount must be positive");
-        require(userTodoBalance[msg.sender] >= _amount, "Insufficient TODO balance");
-        
-        userTodoBalance[msg.sender] -= _amount;
-        
-        emit StakeReceived(msg.sender, _matchId, _amount, block.timestamp);
-    }
-    
-    function depositTokens(uint256 _amount) external onlyRegistered nonReentrant {
-        require(_amount > 0, "Amount must be positive");
-        
-        todoToken.safeTransferFrom(msg.sender, address(this), _amount);
-        userTodoBalance[msg.sender] += _amount;
-        
-        emit TokensDeposited(msg.sender, _amount, block.timestamp);
-    }
-    
-    function withdrawTokens(uint256 _amount) external onlyRegistered nonReentrant {
-        require(_amount > 0, "Amount must be positive");
-        require(userTodoBalance[msg.sender] >= _amount, "Insufficient balance");
-        
-        userTodoBalance[msg.sender] -= _amount;
-        todoToken.safeTransfer(msg.sender, _amount);
-        
-        emit TokensWithdrawn(msg.sender, _amount, block.timestamp);
-    }
-    
     function markActionProcessed(uint256 _actionId, bool _success) external onlyBackend {
         UserAction storage userAction = actions[_actionId];
         require(!userAction.processed, "Action already processed");
@@ -190,14 +290,7 @@ contract Relayer is ReentrancyGuard {
         emit ActionProcessed(_actionId, userAction.user, _success);
     }
     
-    function addReward(address _user, uint256 _amount) external onlyBackend {
-        require(_amount > 0, "Reward amount must be positive");
-        require(registeredUsers[_user], "User not registered");
-        
-        userTodoBalance[_user] += _amount;
-        
-        emit RewardSent(_user, _amount, block.timestamp);
-    }
+    // ==================== View Functions ====================
     
     function getUserActions(address _user) external view returns (uint256[] memory) {
         return userActions[_user];
@@ -219,6 +312,20 @@ contract Relayer is ReentrancyGuard {
         return userTodoBalance[_user];
     }
     
+    function getPoolStats() external view returns (
+        uint256 totalVirtual,
+        uint256 totalStaked,
+        uint256 totalUsers
+    ) {
+        return (
+            totalVirtualBalance,
+            totalStakedAmount,
+            totalUsersRegistered
+        );
+    }
+    
+    // ==================== Admin Functions ====================
+    
     function setBackend(address _newBackend) external onlyDeployer {
         require(_newBackend != address(0), "Invalid backend address");
         backend = _newBackend;
@@ -229,14 +336,22 @@ contract Relayer is ReentrancyGuard {
         deployer = _newDeployer;
     }
     
-    function setTodoToken(address _newToken) external onlyDeployer {
-        require(_newToken != address(0), "Invalid token address");
-        todoToken = IERC20(_newToken);
-    }
-    
-    function withdrawContractTokens(uint256 _amount) external onlyDeployer {
+    /**
+     * @dev Mint virtual tokens to a user (for airdrops, promotions, etc.)
+     */
+    function mintVirtualTokens(address _user, uint256 _amount) external onlyDeployer {
+        require(_user != address(0), "Invalid user address");
         require(_amount > 0, "Amount must be positive");
-        todoToken.safeTransfer(deployer, _amount);
+        
+        if (!registeredUsers[_user]) {
+            registeredUsers[_user] = true;
+            totalUsersRegistered++;
+        }
+        
+        userTodoBalance[_user] += _amount;
+        totalVirtualBalance += _amount;
+        
+        emit RewardSent(_user, _amount, block.timestamp);
     }
     
     receive() external payable {}
